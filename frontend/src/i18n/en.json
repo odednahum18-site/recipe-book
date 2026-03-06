@@ -1,0 +1,74 @@
+{
+  "app": {
+    "title": "Family Recipes",
+    "subtitle": "Delicious recipes passed down through generations",
+    "footer": "Family Recipes - Made with love"
+  },
+  "nav": {
+    "home": "Home",
+    "categories": "Categories",
+    "favorites": "Favorites",
+    "admin": "Admin"
+  },
+  "search": {
+    "placeholder": "Search recipes..."
+  },
+  "recipe": {
+    "ingredients": "Ingredients",
+    "steps": "Preparation Steps",
+    "servings": "Servings",
+    "noRecipes": "No recipes found",
+    "stars": "stars"
+  },
+  "category": {
+    "all": "All"
+  },
+  "admin": {
+    "dashboard": "Recipe Management",
+    "addRecipe": "Add Recipe",
+    "editRecipe": "Edit Recipe",
+    "createRecipe": "Create New Recipe",
+    "recipeName": "Recipe Name",
+    "category": "Category",
+    "ingredients": "Ingredients",
+    "addIngredient": "Add Ingredient",
+    "prepSteps": "Preparation Steps",
+    "images": "Images",
+    "savePublish": "Save & Publish",
+    "saveDraft": "Save as Draft",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "published": "Published",
+    "draft": "Draft",
+    "back": "Back",
+    "users": "Users",
+    "inviteUser": "Invite User",
+    "manageCategories": "Manage Categories",
+    "requiredBothLangs": "Required in both languages",
+    "browseFiles": "Browse Files",
+    "takePhoto": "Take Photo",
+    "dragDrop": "Drag & drop images here"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "username": "Username",
+    "password": "Password"
+  },
+  "share": {
+    "whatsapp": "WhatsApp",
+    "print": "Print",
+    "shareText": "Check out this recipe!"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "confirm": "Are you sure?",
+    "yes": "Yes",
+    "no": "No",
+    "install": "Install",
+    "installApp": "Install App",
+    "installDesc": "Add to your home screen for quick access"
+  }
+}

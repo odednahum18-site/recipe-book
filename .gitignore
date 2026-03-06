@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Environment
+.env
+
+# Local data (JSON storage, regenerated on startup)
+data/
+
+# Uploads (local dev images)
+uploads/*
+!uploads/.gitkeep
+
+# Frontend build output
+static/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

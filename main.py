@@ -1,0 +1,488 @@
+"""
+Family Recipe Book - FastAPI Application
+
+Bilingual (Hebrew/English) recipe management with admin auth,
+image uploads, star ratings, and category navigation.
+
+Port: 8080
+"""
+import os
+import re
+import logging
+from typing import Optional, List
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+
+from config import PORT, STATIC_DIR, UPLOADS_DIR, MAX_IMAGES_PER_RECIPE
+from utils.repository import db
+from utils.auth import create_access_token, get_admin_user
+from utils.storage import save_image, delete_image
+from utils.seed_data import seed_all
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+# ── Pydantic Models ─────────────────────────────────────────────
+
+class BilingualText(BaseModel):
+    en: str
+    he: str
+
+
+class IngredientInput(BaseModel):
+    text: BilingualText
+    amount: str
+    unit: Optional[str] = ""
+
+
+class RecipeCreate(BaseModel):
+    name: BilingualText
+    category_id: str
+    ingredients: List[IngredientInput]
+    steps: BilingualText
+    images: Optional[List[dict]] = []
+    published: Optional[bool] = False
+
+
+class RecipeUpdate(BaseModel):
+    name: Optional[BilingualText] = None
+    category_id: Optional[str] = None
+    ingredients: Optional[List[IngredientInput]] = None
+    steps: Optional[BilingualText] = None
+    images: Optional[List[dict]] = None
+    published: Optional[bool] = None
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class StarRequest(BaseModel):
+    visitor_id: str
+
+
+class CategoryCreate(BaseModel):
+    name: BilingualText
+    icon: Optional[str] = ""
+    order: Optional[int] = 0
+
+
+class InviteRequest(BaseModel):
+    email: str
+    display_name: Optional[str] = ""
+
+
+# ── Helpers ──────────────────────────────────────────────────────
+
+def _slugify(text: str) -> str:
+    """Create URL-friendly slug from English text."""
+    slug = text.lower().strip()
+    slug = re.sub(r"[^\w\s-]", "", slug)
+    slug = re.sub(r"[\s_]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return slug
+
+
+def _update_category_count(category_id: str):
+    """Recalculate recipe_count for a category."""
+    count = db.count("recipes", {"category_id": category_id, "published": True})
+    db.update("categories", category_id, {"recipe_count": count})
+
+
+# ── Lifespan ─────────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    result = seed_all()
+    if result["categories_seeded"]:
+        logger.info("Seeded initial categories")
+    if result["admin_seeded"]:
+        logger.info("Seeded admin user")
+    logger.info(f"Recipe Book started on port {PORT}")
+    yield
+    logger.info("Shutting down Recipe Book")
+
+
+# ── FastAPI App ──────────────────────────────────────────────────
+
+app = FastAPI(title="Family Recipe Book", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ── Health ───────────────────────────────────────────────────────
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "app": "recipe-book"}
+
+
+# ── Auth ─────────────────────────────────────────────────────────
+
+@app.post("/api/auth/login")
+async def login(req: LoginRequest):
+    from config import ADMIN_USERNAME, ADMIN_PASSWORD
+
+    users = db.get_all("users")
+    user = None
+    for u in users:
+        if u.get("username") == req.username and u.get("password") == req.password:
+            user = u
+            break
+
+    if user is None:
+        # Check hardcoded admin as fallback
+        if req.username == ADMIN_USERNAME and req.password == ADMIN_PASSWORD:
+            user = {"id": "admin", "role": "admin", "display_name": "Admin"}
+        else:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_access_token({
+        "sub": user["id"],
+        "role": user.get("role", "editor"),
+        "display_name": user.get("display_name", ""),
+    })
+    return {"access_token": token, "token_type": "bearer", "user": {
+        "id": user["id"],
+        "role": user.get("role"),
+        "display_name": user.get("display_name"),
+    }}
+
+
+@app.get("/api/auth/me")
+async def get_me(user: dict = Depends(get_admin_user)):
+    return {"id": user.get("sub"), "role": user.get("role"), "display_name": user.get("display_name")}
+
+
+# ── Public: Categories ───────────────────────────────────────────
+
+@app.get("/api/categories")
+async def list_categories():
+    categories = db.get_all("categories")
+    categories.sort(key=lambda c: c.get("order", 0))
+    return categories
+
+
+# ── Public: Recipes ──────────────────────────────────────────────
+
+@app.get("/api/recipes")
+async def list_recipes(
+    category: Optional[str] = Query(None, description="Filter by category slug"),
+    search: Optional[str] = Query(None, description="Search by name"),
+    sort: Optional[str] = Query("newest", description="Sort: newest, stars, name"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(12, ge=1, le=50),
+):
+    recipes = db.query("recipes", {"published": True})
+
+    # Filter by category
+    if category:
+        cat = db.get_by_field("categories", "slug", category)
+        if cat:
+            recipes = [r for r in recipes if r.get("category_id") == cat["id"]]
+
+    # Search by name
+    if search:
+        search_lower = search.lower()
+        recipes = [
+            r for r in recipes
+            if search_lower in r.get("name", {}).get("en", "").lower()
+            or search_lower in r.get("name", {}).get("he", "")
+        ]
+
+    # Sort
+    if sort == "stars":
+        recipes.sort(key=lambda r: r.get("star_count", 0), reverse=True)
+    elif sort == "name":
+        recipes.sort(key=lambda r: r.get("name", {}).get("en", "").lower())
+    else:  # newest
+        recipes.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+
+    # Paginate
+    total = len(recipes)
+    start = (page - 1) * page_size
+    recipes = recipes[start : start + page_size]
+
+    return {"data": recipes, "total": total, "page": page, "page_size": page_size}
+
+
+@app.get("/api/recipes/{slug}")
+async def get_recipe(slug: str):
+    recipe = db.get_by_field("recipes", "slug", slug)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return recipe
+
+
+# ── Public: Stars ────────────────────────────────────────────────
+
+@app.post("/api/recipes/{recipe_id}/star")
+async def star_recipe(recipe_id: str, req: StarRequest):
+    recipe = db.get_by_id("recipes", recipe_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    star_id = f"{recipe_id}__{req.visitor_id}"
+    existing = db.get_by_id("stars", star_id)
+    if existing:
+        return {"message": "Already starred", "star_count": recipe.get("star_count", 0)}
+
+    db.create("stars", {"id": star_id, "recipe_id": recipe_id, "visitor_id": req.visitor_id})
+    new_count = recipe.get("star_count", 0) + 1
+    db.update("recipes", recipe_id, {"star_count": new_count})
+    return {"message": "Starred", "star_count": new_count}
+
+
+@app.delete("/api/recipes/{recipe_id}/star")
+async def unstar_recipe(recipe_id: str, req: StarRequest):
+    recipe = db.get_by_id("recipes", recipe_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    star_id = f"{recipe_id}__{req.visitor_id}"
+    deleted = db.delete("stars", star_id)
+    if not deleted:
+        return {"message": "Not starred", "star_count": recipe.get("star_count", 0)}
+
+    new_count = max(0, recipe.get("star_count", 0) - 1)
+    db.update("recipes", recipe_id, {"star_count": new_count})
+    return {"message": "Unstarred", "star_count": new_count}
+
+
+@app.get("/api/recipes/{recipe_id}/starred")
+async def check_starred(recipe_id: str, visitor_id: str = Query(...)):
+    star_id = f"{recipe_id}__{visitor_id}"
+    existing = db.get_by_id("stars", star_id)
+    return {"starred": existing is not None}
+
+
+# ── Admin: Recipes ───────────────────────────────────────────────
+
+@app.get("/api/admin/recipes")
+async def admin_list_recipes(user: dict = Depends(get_admin_user)):
+    recipes = db.get_all("recipes")
+    recipes.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+    return recipes
+
+
+@app.post("/api/admin/recipes")
+async def create_recipe(recipe: RecipeCreate, user: dict = Depends(get_admin_user)):
+    slug = _slugify(recipe.name.en)
+
+    # Ensure unique slug
+    existing = db.get_by_field("recipes", "slug", slug)
+    if existing:
+        slug = f"{slug}-{db.count('recipes') + 1}"
+
+    data = {
+        "slug": slug,
+        "name": recipe.name.model_dump(),
+        "category_id": recipe.category_id,
+        "ingredients": [i.model_dump() for i in recipe.ingredients],
+        "steps": recipe.steps.model_dump(),
+        "images": recipe.images or [],
+        "star_count": 0,
+        "published": recipe.published,
+        "created_by": user.get("sub", "unknown"),
+    }
+    created = db.create("recipes", data)
+
+    if recipe.published:
+        _update_category_count(recipe.category_id)
+
+    return created
+
+
+@app.put("/api/admin/recipes/{recipe_id}")
+async def update_recipe(recipe_id: str, recipe: RecipeUpdate, user: dict = Depends(get_admin_user)):
+    existing = db.get_by_id("recipes", recipe_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    update_data = {}
+    if recipe.name is not None:
+        update_data["name"] = recipe.name.model_dump()
+        update_data["slug"] = _slugify(recipe.name.en)
+    if recipe.category_id is not None:
+        update_data["category_id"] = recipe.category_id
+    if recipe.ingredients is not None:
+        update_data["ingredients"] = [i.model_dump() for i in recipe.ingredients]
+    if recipe.steps is not None:
+        update_data["steps"] = recipe.steps.model_dump()
+    if recipe.images is not None:
+        update_data["images"] = recipe.images
+    if recipe.published is not None:
+        update_data["published"] = recipe.published
+
+    updated = db.update("recipes", recipe_id, update_data)
+
+    # Update category counts if category or published status changed
+    old_cat = existing.get("category_id")
+    new_cat = update_data.get("category_id", old_cat)
+    _update_category_count(old_cat)
+    if new_cat != old_cat:
+        _update_category_count(new_cat)
+
+    return updated
+
+
+@app.delete("/api/admin/recipes/{recipe_id}")
+async def delete_recipe(recipe_id: str, user: dict = Depends(get_admin_user)):
+    existing = db.get_by_id("recipes", recipe_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+
+    # Delete associated images
+    for img in existing.get("images", []):
+        delete_image(img.get("url", ""))
+
+    db.delete("recipes", recipe_id)
+    _update_category_count(existing.get("category_id", ""))
+    return {"message": "Recipe deleted"}
+
+
+# ── Admin: Image Upload ─────────────────────────────────────────
+
+@app.post("/api/admin/upload-image")
+async def upload_image(
+    file: UploadFile = File(...),
+    recipe_id: str = Query("temp"),
+    user: dict = Depends(get_admin_user),
+):
+    content = await file.read()
+
+    try:
+        image_url, thumbnail_url = save_image(content, file.content_type, recipe_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"url": image_url, "thumbnail_url": thumbnail_url}
+
+
+# ── Admin: Categories ────────────────────────────────────────────
+
+@app.post("/api/admin/categories")
+async def create_category(cat: CategoryCreate, user: dict = Depends(get_admin_user)):
+    slug = _slugify(cat.name.en)
+    data = {
+        "slug": slug,
+        "name": cat.name.model_dump(),
+        "icon": cat.icon,
+        "order": cat.order,
+        "recipe_count": 0,
+    }
+    return db.create("categories", data)
+
+
+@app.put("/api/admin/categories/{category_id}")
+async def update_category(category_id: str, cat: CategoryCreate, user: dict = Depends(get_admin_user)):
+    existing = db.get_by_id("categories", category_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    data = {
+        "slug": _slugify(cat.name.en),
+        "name": cat.name.model_dump(),
+        "icon": cat.icon,
+        "order": cat.order,
+    }
+    return db.update("categories", category_id, data)
+
+
+@app.delete("/api/admin/categories/{category_id}")
+async def delete_category(category_id: str, user: dict = Depends(get_admin_user)):
+    recipes = db.query("recipes", {"category_id": category_id})
+    if recipes:
+        raise HTTPException(status_code=400, detail="Cannot delete category with recipes")
+
+    if not db.delete("categories", category_id):
+        raise HTTPException(status_code=404, detail="Category not found")
+    return {"message": "Category deleted"}
+
+
+# ── Admin: User Management ──────────────────────────────────────
+
+@app.get("/api/admin/users")
+async def list_users(user: dict = Depends(get_admin_user)):
+    users = db.get_all("users")
+    # Don't expose passwords
+    return [
+        {k: v for k, v in u.items() if k != "password"}
+        for u in users
+    ]
+
+
+@app.post("/api/admin/invite")
+async def invite_user(req: InviteRequest, user: dict = Depends(get_admin_user)):
+    if db.exists("users", "email", req.email):
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+
+    new_user = db.create("users", {
+        "email": req.email,
+        "display_name": req.display_name or req.email.split("@")[0],
+        "role": "editor",
+        "username": req.email.split("@")[0],
+        "password": "changeme",
+        "invited_by": user.get("sub"),
+    })
+    # Don't return password
+    return {k: v for k, v in new_user.items() if k != "password"}
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def delete_user(user_id: str, user: dict = Depends(get_admin_user)):
+    if user_id == "admin":
+        raise HTTPException(status_code=400, detail="Cannot delete admin user")
+    if not db.delete("users", user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "User removed"}
+
+
+# ── Static Files & SPA ───────────────────────────────────────────
+
+# Serve uploaded images
+if os.path.isdir(UPLOADS_DIR):
+    app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+
+# Serve built frontend assets
+ASSETS_DIR = os.path.join(STATIC_DIR, "assets")
+if os.path.isdir(ASSETS_DIR):
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+
+
+# SPA catch-all
+@app.get("/{path:path}", response_class=HTMLResponse)
+async def serve_spa(path: str = ""):
+    if path.startswith("api/") or path.startswith("assets/") or path.startswith("uploads/") or path == "health":
+        raise HTTPException(status_code=404)
+
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(
+        content="<h1>Recipe Book</h1><p>Frontend not built yet. Run: cd frontend && npm run build</p>"
+    )
+
+
+# ── Run ──────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
