@@ -6,6 +6,7 @@ import { useLocaleStore } from '@/stores/locale'
 import { ElMessage } from 'element-plus'
 import api from '@/api'
 import RichTextEditor from '@/components/recipe/RichTextEditor.vue'
+import { Loading } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -60,10 +61,12 @@ function removeIngredient(index) {
   form.value.ingredients.splice(index, 1)
 }
 
-async function handleUpload(event) {
-  const files = event.target.files
-  if (!files.length) return
+const uploading = ref(false)
+const dragOver = ref(false)
 
+async function uploadFiles(files) {
+  if (!files || !files.length) return
+  uploading.value = true
   for (const file of files) {
     if (form.value.images.length >= 5) {
       ElMessage.warning('Maximum 5 images')
@@ -76,6 +79,19 @@ async function handleUpload(event) {
       ElMessage.error(e.message || 'Upload failed')
     }
   }
+  uploading.value = false
+}
+
+function handleUpload(event) {
+  uploadFiles(event.target.files)
+  event.target.value = ''
+}
+
+function handleDrop(event) {
+  event.preventDefault()
+  dragOver.value = false
+  const files = Array.from(event.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+  uploadFiles(files)
 }
 
 function removeImage(index) {
@@ -192,20 +208,41 @@ function getCategoryName(cat) {
 
     <!-- Images -->
     <div class="form-group">
-      <label class="form-label">{{ $t('admin.images') }}</label>
-      <div class="image-upload-zone" @click="$refs.fileInput.click()">
-        <div class="upload-icon">&#128247;</div>
-        <div>{{ $t('admin.dragDrop') }}</div>
-        <div class="upload-buttons">
-          <span class="upload-btn">&#128193; {{ $t('admin.browseFiles') }}</span>
-          <span class="upload-btn">&#128247; {{ $t('admin.takePhoto') }}</span>
+      <label class="form-label">{{ $t('admin.images') }} ({{ form.images.length }}/5)</label>
+      <div
+        class="image-upload-zone"
+        :class="{ 'drag-over': dragOver, uploading }"
+        @click="$refs.fileInput.click()"
+        @dragover.prevent="dragOver = true"
+        @dragleave="dragOver = false"
+        @drop="handleDrop"
+      >
+        <div v-if="uploading" class="upload-spinner">
+          <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+          <div>{{ $t('common.loading') }}...</div>
         </div>
+        <template v-else>
+          <div class="upload-icon">&#128247;</div>
+          <div>{{ $t('admin.dragDrop') }}</div>
+          <div class="upload-buttons">
+            <span class="upload-btn" @click.stop="$refs.fileInput.click()">&#128193; {{ $t('admin.browseFiles') }}</span>
+            <span class="upload-btn" @click.stop="$refs.cameraInput.click()">&#128247; {{ $t('admin.takePhoto') }}</span>
+          </div>
+        </template>
       </div>
       <input
         ref="fileInput"
         type="file"
         accept="image/*"
         multiple
+        style="display: none"
+        @change="handleUpload"
+      />
+      <input
+        ref="cameraInput"
+        type="file"
+        accept="image/*"
+        capture="environment"
         style="display: none"
         @change="handleUpload"
       />
@@ -269,9 +306,23 @@ function getCategoryName(cat) {
   transition: all var(--transition);
 }
 
-.image-upload-zone:hover {
+.image-upload-zone:hover,
+.image-upload-zone.drag-over {
   border-color: var(--accent);
   color: var(--accent);
+  background: var(--accent-light);
+}
+
+.image-upload-zone.uploading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.upload-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 .upload-icon { font-size: 2.5rem; margin-bottom: 8px; }
