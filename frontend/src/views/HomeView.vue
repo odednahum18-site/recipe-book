@@ -39,8 +39,16 @@ function onSearch() {
 
     <CategoryBar />
 
-    <div v-if="recipesStore.loading" class="loading-state">
-      <el-skeleton :rows="3" animated />
+    <div v-if="recipesStore.loading" class="skeleton-grid">
+      <el-skeleton v-for="n in 6" :key="n" animated>
+        <template #template>
+          <el-skeleton-item variant="image" class="skeleton-card-image" />
+          <div class="skeleton-card-body">
+            <el-skeleton-item variant="text" class="skeleton-card-title" />
+            <el-skeleton-item variant="text" class="skeleton-card-subtitle" />
+          </div>
+        </template>
+      </el-skeleton>
     </div>
 
     <div v-else-if="recipesStore.recipes.length === 0" class="empty-state">
@@ -123,16 +131,6 @@ function onSearch() {
   right: 14px;
 }
 
-.recipe-grid {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px 40px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-}
-
-.loading-state,
 .empty-state {
   max-width: 600px;
   margin: 40px auto;
@@ -140,23 +138,8 @@ function onSearch() {
   text-align: center;
 }
 
-.empty-icon {
-  font-size: 4rem;
-  margin-bottom: 16px;
-}
-
-.empty-state p {
-  color: var(--text-secondary);
-  font-size: 1.1rem;
-}
-
 @media (max-width: 768px) {
   .hero h1 { font-size: 1.7rem; }
   .hero { padding: 32px 16px 24px; }
-  .recipe-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
-    padding: 0 12px 40px;
-  }
 }
 </style>

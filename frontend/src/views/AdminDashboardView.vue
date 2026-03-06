@@ -1,12 +1,14 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useCategoriesStore } from '@/stores/categories'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/api'
 
 const router = useRouter()
+const { t } = useI18n()
 const localeStore = useLocaleStore()
 const categoriesStore = useCategoriesStore()
 
@@ -35,14 +37,14 @@ function getCategoryName(categoryId) {
 async function deleteRecipe(recipe) {
   try {
     await ElMessageBox.confirm(
-      `Delete "${getRecipeName(recipe)}"?`,
-      { confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning' }
+      t('admin.deleteConfirm', { name: getRecipeName(recipe) }),
+      { confirmButtonText: t('admin.delete'), cancelButtonText: t('admin.cancel'), type: 'warning' }
     )
     await api.deleteRecipe(recipe.id)
     recipes.value = recipes.value.filter(r => r.id !== recipe.id)
-    ElMessage.success('Recipe deleted')
+    ElMessage.success(t('admin.recipeDeleted'))
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error(e.message || 'Failed to delete')
+    if (e !== 'cancel') ElMessage.error(e.message || t('admin.deleteFailed'))
   }
 }
 </script>
@@ -90,14 +92,14 @@ async function deleteRecipe(recipe) {
           {{ getCategoryName(row.category_id) }}
         </template>
       </el-table-column>
-      <el-table-column label="Status" width="120">
+      <el-table-column :label="$t('admin.status')" width="120">
         <template #default="{ row }">
           <el-tag :type="row.published ? 'success' : 'warning'" size="small">
             {{ row.published ? $t('admin.published') : $t('admin.draft') }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="&#9733;" width="80">
+      <el-table-column :label="$t('admin.stars')" width="80">
         <template #default="{ row }">
           <span style="color: var(--star)">&#9733;</span> {{ row.star_count || 0 }}
         </template>

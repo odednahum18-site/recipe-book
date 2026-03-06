@@ -48,7 +48,12 @@
     "requiredBothLangs": "Required in both languages",
     "browseFiles": "Browse Files",
     "takePhoto": "Take Photo",
-    "dragDrop": "Drag & drop images here"
+    "dragDrop": "Drag & drop images here",
+    "status": "Status",
+    "stars": "Stars",
+    "deleteConfirm": "Delete \"{name}\"?",
+    "recipeDeleted": "Recipe deleted",
+    "deleteFailed": "Failed to delete"
   },
   "auth": {
     "login": "Login",

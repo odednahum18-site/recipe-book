@@ -135,6 +135,62 @@ html.dark .el-message-box {
   border-color: var(--accent-dark) !important;
 }
 
+/* ===== Shared Layout ===== */
+.recipe-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.skeleton-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.skeleton-card-image {
+  height: 180px;
+  border-radius: 12px 12px 0 0;
+}
+
+.skeleton-card-body {
+  padding: 14px;
+}
+
+.skeleton-card-title {
+  width: 60%;
+  margin-bottom: 8px;
+}
+
+.skeleton-card-subtitle {
+  width: 40%;
+}
+
+@media (max-width: 768px) {
+  .recipe-grid,
+  .skeleton-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    padding: 0 12px 40px;
+  }
+}
+
 /* ===== Animations ===== */
 @keyframes fadeInUp {
   from {
