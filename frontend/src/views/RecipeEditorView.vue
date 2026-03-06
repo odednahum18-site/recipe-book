@@ -379,11 +379,6 @@ function getCategoryName(cat) {
   justify-content: center;
 }
 
-:deep(.el-button--primary) {
-  background-color: var(--accent);
-  border-color: var(--accent);
-}
-
 :deep(.el-tabs__active-bar) {
   background-color: var(--accent);
 }

@@ -97,13 +97,4 @@ async function handleLogin() {
   margin-bottom: 16px;
 }
 
-:deep(.el-button--primary) {
-  background-color: var(--accent);
-  border-color: var(--accent);
-}
-
-:deep(.el-button--primary:hover) {
-  background-color: var(--accent-dark);
-  border-color: var(--accent-dark);
-}
 </style>

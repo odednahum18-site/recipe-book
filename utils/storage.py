@@ -44,10 +44,9 @@ def save_image(file_content: bytes, content_type: str, recipe_id: str = "temp") 
     img.save(image_path, "WEBP", quality=85)
 
     # Create and save thumbnail
-    thumb = img.copy()
-    ratio = THUMBNAIL_WIDTH / thumb.width
-    thumb_height = int(thumb.height * ratio)
-    thumb = thumb.resize((THUMBNAIL_WIDTH, thumb_height), Image.Resampling.LANCZOS)
+    ratio = THUMBNAIL_WIDTH / img.width
+    thumb_height = int(img.height * ratio)
+    thumb = img.resize((THUMBNAIL_WIDTH, thumb_height), Image.Resampling.LANCZOS)
     thumb.save(thumb_path, "WEBP", quality=80)
 
     # Return relative URLs
@@ -66,12 +65,16 @@ def delete_image(image_url: str) -> bool:
     rel_path = image_url.replace("/uploads/", "")
     file_path = os.path.join(UPLOADS_DIR, rel_path)
 
-    if os.path.exists(file_path):
+    try:
         os.remove(file_path)
-        # Also try to delete the thumbnail
-        base, ext = os.path.splitext(file_path)
-        thumb_path = f"{base}_thumb{ext}"
-        if os.path.exists(thumb_path):
-            os.remove(thumb_path)
-        return True
-    return False
+    except FileNotFoundError:
+        return False
+
+    # Also try to delete the thumbnail
+    base, ext = os.path.splitext(file_path)
+    thumb_path = f"{base}_thumb{ext}"
+    try:
+        os.remove(thumb_path)
+    except FileNotFoundError:
+        pass
+    return True

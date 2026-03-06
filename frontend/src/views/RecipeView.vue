@@ -1,12 +1,14 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useRecipesStore } from '@/stores/recipes'
 import { useLocaleStore } from '@/stores/locale'
 import { useCategoriesStore } from '@/stores/categories'
 import { useStarsStore } from '@/stores/stars'
 
 const route = useRoute()
+const { t } = useI18n()
 const recipesStore = useRecipesStore()
 const localeStore = useLocaleStore()
 const categoriesStore = useCategoriesStore()
@@ -54,9 +56,7 @@ async function toggleStar() {
 }
 
 function shareWhatsApp() {
-  const text = localeStore.isHebrew
-    ? `\u05d1\u05d5\u05d0\u05d5 \u05ea\u05e0\u05e1\u05d5 \u05d0\u05ea \u05d4\u05de\u05ea\u05db\u05d5\u05df \u05d4\u05d6\u05d4! ${name.value} - ${window.location.href}`
-    : `Check out this recipe! ${name.value} - ${window.location.href}`
+  const text = `${t('share.shareText')} ${name.value} - ${window.location.href}`
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
 }
 </script>

@@ -91,8 +91,4 @@ async function inviteUser() {
   font-weight: 600;
 }
 
-:deep(.el-button--primary) {
-  background-color: var(--accent);
-  border-color: var(--accent);
-}
 </style>

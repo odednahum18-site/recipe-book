@@ -99,15 +99,33 @@ def _update_category_count(category_id: str):
     db.update("categories", category_id, {"recipe_count": count})
 
 
+def _star_id(recipe_id: str, visitor_id: str) -> str:
+    """Build a deterministic star ID from recipe + visitor."""
+    return f"{recipe_id}__{visitor_id}"
+
+
 # ── Lifespan ─────────────────────────────────────────────────────
+
+_index_html_cache: Optional[str] = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _index_html_cache
     result = seed_all()
     if result["categories_seeded"]:
         logger.info("Seeded initial categories")
     if result["admin_seeded"]:
         logger.info("Seeded admin user")
+    # Cache index.html for SPA serving
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    try:
+        with open(index_path, "r", encoding="utf-8") as f:
+            _index_html_cache = f.read()
+    except FileNotFoundError:
+        pass
+    # Ensure uploads directory exists
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
     logger.info(f"Recipe Book started on port {PORT}")
     yield
     logger.info("Shutting down Recipe Book")
@@ -139,12 +157,9 @@ async def health():
 async def login(req: LoginRequest):
     from config import ADMIN_USERNAME, ADMIN_PASSWORD
 
-    users = db.get_all("users")
-    user = None
-    for u in users:
-        if u.get("username") == req.username and u.get("password") == req.password:
-            user = u
-            break
+    user = db.get_by_field("users", "username", req.username)
+    if user and user.get("password") != req.password:
+        user = None
 
     if user is None:
         # Check hardcoded admin as fallback
@@ -238,12 +253,12 @@ async def star_recipe(recipe_id: str, req: StarRequest):
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found")
 
-    star_id = f"{recipe_id}__{req.visitor_id}"
-    existing = db.get_by_id("stars", star_id)
+    sid = _star_id(recipe_id, req.visitor_id)
+    existing = db.get_by_id("stars", sid)
     if existing:
         return {"message": "Already starred", "star_count": recipe.get("star_count", 0)}
 
-    db.create("stars", {"id": star_id, "recipe_id": recipe_id, "visitor_id": req.visitor_id})
+    db.create("stars", {"id": sid, "recipe_id": recipe_id, "visitor_id": req.visitor_id})
     new_count = recipe.get("star_count", 0) + 1
     db.update("recipes", recipe_id, {"star_count": new_count})
     return {"message": "Starred", "star_count": new_count}
@@ -255,8 +270,8 @@ async def unstar_recipe(recipe_id: str, req: StarRequest):
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found")
 
-    star_id = f"{recipe_id}__{req.visitor_id}"
-    deleted = db.delete("stars", star_id)
+    sid = _star_id(recipe_id, req.visitor_id)
+    deleted = db.delete("stars", sid)
     if not deleted:
         return {"message": "Not starred", "star_count": recipe.get("star_count", 0)}
 
@@ -267,8 +282,8 @@ async def unstar_recipe(recipe_id: str, req: StarRequest):
 
 @app.get("/api/recipes/{recipe_id}/starred")
 async def check_starred(recipe_id: str, visitor_id: str = Query(...)):
-    star_id = f"{recipe_id}__{visitor_id}"
-    existing = db.get_by_id("stars", star_id)
+    sid = _star_id(recipe_id, visitor_id)
+    existing = db.get_by_id("stars", sid)
     return {"starred": existing is not None}
 
 
@@ -332,12 +347,15 @@ async def update_recipe(recipe_id: str, recipe: RecipeUpdate, user: dict = Depen
 
     updated = db.update("recipes", recipe_id, update_data)
 
-    # Update category counts if category or published status changed
+    # Update category counts only if category or published status changed
     old_cat = existing.get("category_id")
     new_cat = update_data.get("category_id", old_cat)
-    _update_category_count(old_cat)
-    if new_cat != old_cat:
-        _update_category_count(new_cat)
+    pub_changed = "published" in update_data and update_data["published"] != existing.get("published")
+    cat_changed = new_cat != old_cat
+    if pub_changed or cat_changed:
+        _update_category_count(old_cat)
+        if cat_changed:
+            _update_category_count(new_cat)
 
     return updated
 
@@ -456,9 +474,8 @@ async def delete_user(user_id: str, user: dict = Depends(get_admin_user)):
 
 # ── Static Files & SPA ───────────────────────────────────────────
 
-# Serve uploaded images
-if os.path.isdir(UPLOADS_DIR):
-    app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+# Serve uploaded images (directory created in lifespan handler)
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 # Serve built frontend assets
 ASSETS_DIR = os.path.join(STATIC_DIR, "assets")
@@ -472,10 +489,8 @@ async def serve_spa(path: str = ""):
     if path.startswith("api/") or path.startswith("assets/") or path.startswith("uploads/") or path == "health":
         raise HTTPException(status_code=404)
 
-    index_path = os.path.join(STATIC_DIR, "index.html")
-    if os.path.exists(index_path):
-        with open(index_path, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
+    if _index_html_cache:
+        return HTMLResponse(content=_index_html_cache)
     return HTMLResponse(
         content="<h1>Recipe Book</h1><p>Frontend not built yet. Run: cd frontend && npm run build</p>"
     )

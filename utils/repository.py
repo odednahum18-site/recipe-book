@@ -29,10 +29,11 @@ class JSONRepository:
 
     def _read_all(self, collection: str) -> List[Dict[str, Any]]:
         path = self._file_path(collection)
-        if not os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except FileNotFoundError:
             return []
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
 
     def _write_all(self, collection: str, data: List[Dict[str, Any]]):
         path = self._file_path(collection)

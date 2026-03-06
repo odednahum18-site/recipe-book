@@ -124,6 +124,17 @@ html.dark .el-message-box {
   }
 }
 
+/* ===== Element Plus Accent Overrides ===== */
+.el-button--primary {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.el-button--primary:hover {
+  background-color: var(--accent-dark) !important;
+  border-color: var(--accent-dark) !important;
+}
+
 /* ===== Animations ===== */
 @keyframes fadeInUp {
   from {
