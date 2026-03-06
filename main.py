@@ -124,8 +124,6 @@ async def lifespan(app: FastAPI):
             _index_html_cache = f.read()
     except FileNotFoundError:
         pass
-    # Ensure uploads directory exists
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
     logger.info(f"Recipe Book started on port {PORT}")
     yield
     logger.info("Shutting down Recipe Book")
@@ -474,7 +472,8 @@ async def delete_user(user_id: str, user: dict = Depends(get_admin_user)):
 
 # ── Static Files & SPA ───────────────────────────────────────────
 
-# Serve uploaded images (directory created in lifespan handler)
+# Serve uploaded images (ensure dir exists before mount)
+os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 # Serve built frontend assets
