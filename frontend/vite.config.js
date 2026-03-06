@@ -68,6 +68,15 @@ export default defineConfig({
   },
   build: {
     outDir: '../static',
-    emptyOutDir: true
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'element-plus': ['element-plus'],
+          'tiptap': ['@tiptap/vue-3', '@tiptap/starter-kit', '@tiptap/extension-placeholder']
+        }
+      }
+    }
   }
 })

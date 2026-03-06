@@ -65,7 +65,21 @@ async function deleteRecipe(recipe) {
       <el-button @click="router.push('/admin/invite')">{{ $t('admin.users') }}</el-button>
     </div>
 
-    <el-table :data="recipes" v-loading="loading" stripe>
+    <div v-if="loading" class="skeleton-table">
+      <el-skeleton v-for="n in 5" :key="n" animated>
+        <template #template>
+          <div class="skeleton-row">
+            <el-skeleton-item variant="text" style="width: 40%" />
+            <el-skeleton-item variant="text" style="width: 15%" />
+            <el-skeleton-item variant="text" style="width: 10%" />
+            <el-skeleton-item variant="text" style="width: 8%" />
+            <el-skeleton-item variant="text" style="width: 20%" />
+          </div>
+        </template>
+      </el-skeleton>
+    </div>
+
+    <el-table v-else :data="recipes" stripe>
       <el-table-column :label="$t('admin.recipeName')" min-width="200">
         <template #default="{ row }">
           <strong>{{ getRecipeName(row) }}</strong>
@@ -127,6 +141,20 @@ async function deleteRecipe(recipe) {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+}
+
+.skeleton-table {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 </style>

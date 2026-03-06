@@ -20,15 +20,32 @@ watch(() => route.params.slug, (newSlug) => {
 <template>
   <div>
     <CategoryBar />
-    <div class="recipe-grid">
+
+    <div v-if="recipesStore.loading" class="loading-state">
+      <div class="skeleton-grid">
+        <el-skeleton v-for="n in 6" :key="n" animated>
+          <template #template>
+            <el-skeleton-item variant="image" style="height: 180px; border-radius: 12px 12px 0 0" />
+            <div style="padding: 14px">
+              <el-skeleton-item variant="text" style="width: 60%; margin-bottom: 8px" />
+              <el-skeleton-item variant="text" style="width: 40%" />
+            </div>
+          </template>
+        </el-skeleton>
+      </div>
+    </div>
+
+    <div v-else-if="recipesStore.recipes.length === 0" class="empty-state">
+      <div class="empty-icon">&#128218;</div>
+      <p>{{ $t('recipe.noRecipes') }}</p>
+    </div>
+
+    <div v-else class="recipe-grid">
       <RecipeCard
         v-for="recipe in recipesStore.recipes"
         :key="recipe.id"
         :recipe="recipe"
       />
-    </div>
-    <div v-if="recipesStore.recipes.length === 0 && !recipesStore.loading" class="empty-state">
-      <p>{{ $t('recipe.noRecipes') }}</p>
     </div>
   </div>
 </template>
@@ -43,9 +60,27 @@ watch(() => route.params.slug, (newSlug) => {
   gap: 20px;
 }
 
+.loading-state,
 .empty-state {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 20px 40px;
   text-align: center;
-  padding: 40px 20px;
+}
+
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
   color: var(--text-secondary);
+  font-size: 1.1rem;
 }
 </style>
