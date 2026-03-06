@@ -108,5 +108,13 @@ class JSONRepository:
         return self.get_by_field(collection, field, value) is not None
 
 
-# Singleton
-db = JSONRepository()
+# Singleton - uses Firestore in production, JSON locally
+def _create_db():
+    from config import DB_MODE
+    if DB_MODE == "firestore":
+        from utils.firestore_repository import FirestoreRepository
+        return FirestoreRepository()
+    return JSONRepository()
+
+
+db = _create_db()

@@ -33,6 +33,9 @@ export default {
   login(username, password) {
     return client.post('/auth/login', { username, password })
   },
+  firebaseLogin() {
+    return client.post('/auth/firebase-login')
+  },
   getMe() {
     return client.get('/auth/me')
   },

@@ -33,7 +33,7 @@ async function handleLogin() {
         <el-form-item>
           <el-input
             v-model="username"
-            :placeholder="$t('auth.username')"
+            :placeholder="authStore.isFirebaseAuth ? $t('auth.email') : $t('auth.username')"
             prefix-icon="User"
             size="large"
           />

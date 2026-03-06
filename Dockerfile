@@ -21,11 +21,13 @@ COPY utils/ utils/
 # Copy built frontend from stage 1
 COPY --from=frontend-build /app/static/ static/
 
-# Create directories for runtime data
+# Create directories for runtime data (used in local mode only)
 RUN mkdir -p data uploads
 
 # Default port for Cloud Run
 ENV PORT=8080
+# Production mode: Firestore + GCS + Firebase Auth
+ENV ENV_MODE=production
 
 EXPOSE 8080
 

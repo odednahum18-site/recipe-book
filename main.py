@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from config import PORT, STATIC_DIR, UPLOADS_DIR, MAX_IMAGES_PER_RECIPE
+from config import PORT, STATIC_DIR, UPLOADS_DIR, MAX_IMAGES_PER_RECIPE, AUTH_MODE, STORAGE_MODE
 from utils.repository import db
 from utils.auth import create_access_token, get_admin_user
 from utils.storage import save_image, delete_image
@@ -176,6 +176,21 @@ async def login(req: LoginRequest):
         "role": user.get("role"),
         "display_name": user.get("display_name"),
     }}
+
+
+@app.post("/api/auth/firebase-login")
+async def firebase_login(user: dict = Depends(get_admin_user)):
+    """Verify Firebase token and return user info. Used in production mode."""
+    # Look up user in our DB to get role
+    db_user = db.get_by_field("users", "email", user.get("email", ""))
+    if db_user:
+        return {"user": {
+            "id": db_user["id"],
+            "role": db_user.get("role", "editor"),
+            "display_name": db_user.get("display_name", ""),
+            "email": db_user.get("email", ""),
+        }}
+    raise HTTPException(status_code=403, detail="User not authorized. Ask an admin to invite you.")
 
 
 @app.get("/api/auth/me")
@@ -472,9 +487,10 @@ async def delete_user(user_id: str, user: dict = Depends(get_admin_user)):
 
 # ── Static Files & SPA ───────────────────────────────────────────
 
-# Serve uploaded images (ensure dir exists before mount)
-os.makedirs(UPLOADS_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+# Serve uploaded images locally (GCS mode serves directly from bucket)
+if STORAGE_MODE == "local":
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 # Serve built frontend assets
 ASSETS_DIR = os.path.join(STATIC_DIR, "assets")
