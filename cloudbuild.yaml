@@ -2,6 +2,8 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'build'
+      - '--build-arg'
+      - 'VITE_GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}'
       - '-t'
       - 'me-west1-docker.pkg.dev/$PROJECT_ID/recipe-book/recipe-book:$BUILD_ID'
       - '.'
@@ -31,12 +33,13 @@ steps:
       - '--max-instances'
       - '2'
       - '--set-env-vars'
-      - 'ENV_MODE=production,AUTH_MODE=jwt,GCS_BUCKET_NAME=family-recipe-book-489413-recipe-images,JWT_SECRET=${_JWT_SECRET},ADMIN_USERNAME=${_ADMIN_USERNAME},ADMIN_PASSWORD=${_ADMIN_PASSWORD}'
+      - 'ENV_MODE=production,AUTH_MODE=jwt,GCS_BUCKET_NAME=family-recipe-book-489413-recipe-images,JWT_SECRET=${_JWT_SECRET},ADMIN_USERNAME=${_ADMIN_USERNAME},ADMIN_PASSWORD=${_ADMIN_PASSWORD},GOOGLE_CLIENT_ID=${_GOOGLE_CLIENT_ID}'
 
 substitutions:
   _JWT_SECRET: 'change-this-to-a-secure-secret'
   _ADMIN_USERNAME: 'admin'
   _ADMIN_PASSWORD: 'change-this-to-a-secure-password'
+  _GOOGLE_CLIENT_ID: ''
 
 images:
   - 'me-west1-docker.pkg.dev/$PROJECT_ID/recipe-book/recipe-book:$BUILD_ID'

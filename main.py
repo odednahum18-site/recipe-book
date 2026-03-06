@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from config import PORT, STATIC_DIR, UPLOADS_DIR, MAX_IMAGES_PER_RECIPE, AUTH_MODE, STORAGE_MODE
+from config import PORT, STATIC_DIR, UPLOADS_DIR, MAX_IMAGES_PER_RECIPE, AUTH_MODE, STORAGE_MODE, GOOGLE_CLIENT_ID
 from utils.repository import db
 from utils.auth import create_access_token, get_admin_user
 from utils.storage import save_image, delete_image
@@ -75,6 +75,10 @@ class CategoryCreate(BaseModel):
     name: BilingualText
     icon: Optional[str] = ""
     order: Optional[int] = 0
+
+
+class GoogleLoginRequest(BaseModel):
+    credential: str
 
 
 class InviteRequest(BaseModel):
@@ -191,6 +195,48 @@ async def firebase_login(user: dict = Depends(get_admin_user)):
             "email": db_user.get("email", ""),
         }}
     raise HTTPException(status_code=403, detail="User not authorized. Ask an admin to invite you.")
+
+
+@app.post("/api/auth/google-login")
+async def google_login(req: GoogleLoginRequest):
+    """Verify Google ID token and return JWT. User must be pre-invited by email."""
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google login not configured")
+
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            req.credential, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    email = idinfo.get("email", "")
+    if not email:
+        raise HTTPException(status_code=401, detail="No email in Google token")
+
+    # Look up user by email — must be pre-invited
+    db_user = db.get_by_field("users", "email", email)
+    if not db_user:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized. Ask an admin to invite your email first."
+        )
+
+    token = create_access_token({
+        "sub": db_user["id"],
+        "role": db_user.get("role", "editor"),
+        "display_name": db_user.get("display_name", idinfo.get("name", "")),
+    })
+    user_data = {
+        "id": db_user["id"],
+        "role": db_user.get("role", "editor"),
+        "display_name": db_user.get("display_name", ""),
+        "email": email,
+    }
+    return {"access_token": token, "token_type": "bearer", "user": user_data}
 
 
 @app.get("/api/auth/me")
@@ -468,12 +514,9 @@ async def invite_user(req: InviteRequest, user: dict = Depends(get_admin_user)):
         "email": req.email,
         "display_name": req.display_name or req.email.split("@")[0],
         "role": "editor",
-        "username": req.email.split("@")[0],
-        "password": "changeme",
         "invited_by": user.get("sub"),
     })
-    # Don't return password
-    return {k: v for k, v in new_user.items() if k != "password"}
+    return new_user
 
 
 @app.delete("/api/admin/users/{user_id}")

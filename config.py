@@ -35,6 +35,9 @@ JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", 1440))  # 24 hours
 
+# Google OAuth
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+
 # Google Cloud Storage
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "family-recipe-book-489413-recipe-images")
 

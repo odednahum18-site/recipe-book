@@ -36,6 +36,9 @@ export default {
   firebaseLogin() {
     return client.post('/auth/firebase-login')
   },
+  googleLogin(credential) {
+    return client.post('/auth/google-login', { credential })
+  },
   getMe() {
     return client.get('/auth/me')
   },

@@ -86,6 +86,24 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    async googleLogin(credential) {
+      this.loading = true
+      this.error = null
+      try {
+        const result = await api.googleLogin(credential)
+        this.token = result.access_token
+        this.user = result.user
+        localStorage.setItem('recipe-book-token', result.access_token)
+        localStorage.setItem('recipe-book-user', JSON.stringify(result.user))
+        return true
+      } catch (e) {
+        this.error = e.message || 'Google login failed'
+        return false
+      } finally {
+        this.loading = false
+      }
+    },
+
     async logout() {
       if (AUTH_MODE === 'firebase') {
         try {

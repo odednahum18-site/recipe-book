@@ -60,7 +60,8 @@
     "logout": "Logout",
     "username": "Username",
     "email": "Email",
-    "password": "Password"
+    "password": "Password",
+    "or": "or"
   },
   "share": {
     "whatsapp": "WhatsApp",
