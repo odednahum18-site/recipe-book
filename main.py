@@ -213,16 +213,26 @@ async def google_login(req: GoogleLoginRequest):
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid Google token")
 
-    email = idinfo.get("email", "")
+    email = idinfo.get("email", "").strip().lower()
     if not email:
         raise HTTPException(status_code=401, detail="No email in Google token")
+
+    logger.info(f"Google login attempt: email={email}")
 
     # Look up user by email — must be pre-invited
     db_user = db.get_by_field("users", "email", email)
     if not db_user:
+        # Case-insensitive fallback: scan all users
+        all_users = db.get_all("users")
+        logger.info(f"Exact match failed. Users in DB: {[u.get('email') for u in all_users]}")
+        for u in all_users:
+            if u.get("email", "").strip().lower() == email:
+                db_user = u
+                break
+    if not db_user:
         raise HTTPException(
             status_code=403,
-            detail="Not authorized. Ask an admin to invite your email first."
+            detail=f"Not authorized. Email '{email}' not found. Ask an admin to invite you."
         )
 
     token = create_access_token({
@@ -507,12 +517,13 @@ async def list_users(user: dict = Depends(get_admin_user)):
 
 @app.post("/api/admin/invite")
 async def invite_user(req: InviteRequest, user: dict = Depends(get_admin_user)):
-    if db.exists("users", "email", req.email):
+    invite_email = req.email.strip().lower()
+    if db.exists("users", "email", invite_email):
         raise HTTPException(status_code=400, detail="User with this email already exists")
 
     new_user = db.create("users", {
-        "email": req.email,
-        "display_name": req.display_name or req.email.split("@")[0],
+        "email": invite_email,
+        "display_name": req.display_name or invite_email.split("@")[0],
         "role": "editor",
         "invited_by": user.get("sub"),
     })
