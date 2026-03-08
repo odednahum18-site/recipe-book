@@ -9,7 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Family Recipes',
+        name: 'Nahum Family Recipes',
         short_name: 'Recipes',
         description: 'Family recipe book - bilingual Hebrew/English',
         theme_color: '#059669',
