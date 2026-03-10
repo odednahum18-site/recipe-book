@@ -41,6 +41,9 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 # Google Cloud Storage
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "family-recipe-book-489413-recipe-images")
 
+# Gemini (for OCR recipe parsing)
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
 # Image upload
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB
 MAX_IMAGES_PER_RECIPE = 5

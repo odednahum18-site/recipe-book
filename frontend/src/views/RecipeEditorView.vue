@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useCategoriesStore } from '@/stores/categories'
 import { useLocaleStore } from '@/stores/locale'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/api'
 import RichTextEditor from '@/components/recipe/RichTextEditor.vue'
 import { Loading } from '@element-plus/icons-vue'
@@ -59,6 +59,103 @@ function addIngredient() {
 
 function removeIngredient(index) {
   form.value.ingredients.splice(index, 1)
+}
+
+const translating = ref(false)
+const scanning = ref(false)
+
+async function translateAll() {
+  const sourceLang = activeLangTab.value
+  const targetLang = sourceLang === 'en' ? 'he' : 'en'
+  const targetLabel = targetLang === 'en' ? 'English' : 'Hebrew'
+
+  // Check if target already has content
+  const hasTarget = form.value.name[targetLang] ||
+    form.value.ingredients.some(i => i.text[targetLang]) ||
+    form.value.steps[targetLang]
+
+  if (hasTarget) {
+    try {
+      await ElMessageBox.confirm(
+        `This will overwrite existing ${targetLabel} content. Continue?`,
+        'Translate',
+        { type: 'warning' }
+      )
+    } catch { return }
+  }
+
+  // Build batch request
+  const texts = [
+    { field: 'name', value: form.value.name[sourceLang], format: 'text' },
+    { field: 'steps', value: form.value.steps[sourceLang], format: 'html' },
+  ]
+  form.value.ingredients.forEach((ing, idx) => {
+    if (ing.text[sourceLang]) {
+      texts.push({ field: `ingredient_${idx}`, value: ing.text[sourceLang], format: 'text' })
+    }
+  })
+
+  translating.value = true
+  try {
+    const result = await api.translateFields(texts, sourceLang, targetLang)
+    const t = result.translations
+    if (t.name) form.value.name[targetLang] = t.name
+    if (t.steps) form.value.steps[targetLang] = t.steps
+    form.value.ingredients.forEach((ing, idx) => {
+      const key = `ingredient_${idx}`
+      if (t[key]) ing.text[targetLang] = t[key]
+    })
+    ElMessage.success(targetLang === 'he' ? 'התרגום הושלם!' : 'Translation complete!')
+    activeLangTab.value = targetLang
+  } catch (e) {
+    ElMessage.error(e.message || 'Translation failed')
+  } finally {
+    translating.value = false
+  }
+}
+
+async function handleScan(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  event.target.value = ''
+
+  // Check if form has content
+  const hasContent = form.value.name.en || form.value.name.he ||
+    form.value.ingredients.some(i => i.text.en || i.text.he) ||
+    form.value.steps.en || form.value.steps.he
+
+  if (hasContent) {
+    try {
+      await ElMessageBox.confirm(
+        'This will overwrite existing recipe content. Continue?',
+        'Scan Recipe',
+        { type: 'warning' }
+      )
+    } catch { return }
+  }
+
+  scanning.value = true
+  try {
+    const result = await api.scanRecipe(file)
+    const lang = result.detected_language || 'he'
+
+    if (result.name) form.value.name[lang] = result.name
+    if (result.ingredients?.length) {
+      form.value.ingredients = result.ingredients.map(ing => ({
+        text: { en: '', he: '', [lang]: ing.text || '' },
+        amount: ing.amount || '',
+        unit: ing.unit || ''
+      }))
+    }
+    if (result.steps) form.value.steps[lang] = result.steps
+
+    activeLangTab.value = lang
+    ElMessage.success(lang === 'he' ? 'המתכון נסרק בהצלחה!' : 'Recipe scanned successfully!')
+  } catch (e) {
+    ElMessage.error(e.message || 'Scan failed')
+  } finally {
+    scanning.value = false
+  }
 }
 
 const uploading = ref(false)
@@ -145,11 +242,38 @@ function getCategoryName(cat) {
       </div>
     </div>
 
+    <!-- Scan Recipe -->
+    <div class="scan-zone">
+      <el-button type="success" @click="$refs.scanInput.click()" :loading="scanning" size="large">
+        {{ scanning ? $t('admin.scanning') : $t('admin.scanRecipe') }}
+      </el-button>
+      <input
+        ref="scanInput"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style="display: none"
+        @change="handleScan"
+      />
+    </div>
+
     <!-- Language tabs -->
-    <el-tabs v-model="activeLangTab" class="lang-tabs">
-      <el-tab-pane label="English" name="en" />
-      <el-tab-pane label="Hebrew" name="he" />
-    </el-tabs>
+    <div class="lang-bar">
+      <el-tabs v-model="activeLangTab" class="lang-tabs">
+        <el-tab-pane label="English" name="en" />
+        <el-tab-pane label="Hebrew" name="he" />
+      </el-tabs>
+      <el-button
+        size="small"
+        type="info"
+        plain
+        @click="translateAll"
+        :loading="translating"
+        class="translate-btn"
+      >
+        {{ activeLangTab === 'en' ? $t('admin.translateToHe') : $t('admin.translateToEn') }}
+      </el-button>
+    </div>
 
     <!-- Recipe Name -->
     <div class="form-group">
@@ -377,6 +501,31 @@ function getCategoryName(cat) {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.scan-zone {
+  margin-bottom: 16px;
+  text-align: center;
+  padding: 16px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+}
+
+.lang-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.lang-bar .lang-tabs {
+  flex: 1;
+}
+
+.translate-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 :deep(.el-tabs__active-bar) {

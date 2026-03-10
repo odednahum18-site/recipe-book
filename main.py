@@ -6,10 +6,11 @@ image uploads, star ratings, and category navigation.
 
 Port: 8080
 """
+import asyncio
 import os
 import re
 import logging
-from typing import Optional, List
+from typing import Optional, List, Literal
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File
@@ -18,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from config import PORT, STATIC_DIR, UPLOADS_DIR, MAX_IMAGES_PER_RECIPE, AUTH_MODE, STORAGE_MODE, GOOGLE_CLIENT_ID
+from config import PORT, STATIC_DIR, UPLOADS_DIR, MAX_IMAGES_PER_RECIPE, MAX_IMAGE_SIZE, ALLOWED_IMAGE_TYPES, AUTH_MODE, STORAGE_MODE, GOOGLE_CLIENT_ID
 from utils.repository import db
 from utils.auth import create_access_token, get_admin_user
 from utils.storage import save_image, delete_image
@@ -84,6 +85,18 @@ class GoogleLoginRequest(BaseModel):
 class InviteRequest(BaseModel):
     email: str
     display_name: Optional[str] = ""
+
+
+class TranslateFieldItem(BaseModel):
+    field: str
+    value: str
+    format: Literal["text", "html"] = "text"
+
+
+class TranslateRequest(BaseModel):
+    texts: List[TranslateFieldItem]
+    source_lang: str
+    target_lang: str
 
 
 # ── Helpers ──────────────────────────────────────────────────────
@@ -537,6 +550,47 @@ async def delete_user(user_id: str, user: dict = Depends(get_admin_user)):
     if not db.delete("users", user_id):
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User removed"}
+
+
+# ── Admin: Scan Recipe (OCR) ────────────────────────────────────
+
+@app.post("/api/admin/scan-recipe")
+async def scan_recipe(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_admin_user),
+):
+    """Scan a recipe photo and return structured recipe data."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported image type: {file.content_type}")
+
+    content = await file.read()
+    if len(content) > MAX_IMAGE_SIZE:
+        raise HTTPException(status_code=400, detail="Image too large (max 5MB)")
+
+    from utils.ocr import scan_recipe_image
+    try:
+        result = await asyncio.to_thread(scan_recipe_image, content)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return result
+
+
+# ── Admin: Translate ────────────────────────────────────────────
+
+@app.post("/api/admin/translate")
+async def translate_recipe_fields(req: TranslateRequest, user: dict = Depends(get_admin_user)):
+    """Batch translate recipe fields between Hebrew and English."""
+    if req.source_lang not in ("en", "he") or req.target_lang not in ("en", "he"):
+        raise HTTPException(status_code=400, detail="source_lang and target_lang must be 'en' or 'he'")
+
+    from utils.translate import translate_batch
+    items = [{"field": t.field, "value": t.value, "format": t.format} for t in req.texts]
+    try:
+        translations = await asyncio.to_thread(translate_batch, items, req.source_lang, req.target_lang)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+    return {"translations": translations}
 
 
 # ── Static Files & SPA ───────────────────────────────────────────

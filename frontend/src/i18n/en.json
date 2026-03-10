@@ -53,7 +53,11 @@
     "stars": "Stars",
     "deleteConfirm": "Delete \"{name}\"?",
     "recipeDeleted": "Recipe deleted",
-    "deleteFailed": "Failed to delete"
+    "deleteFailed": "Failed to delete",
+    "scanRecipe": "Scan Recipe Photo",
+    "scanning": "Scanning...",
+    "translateToHe": "Translate \u2192 Hebrew",
+    "translateToEn": "Translate \u2192 English"
   },
   "auth": {
     "login": "Login",

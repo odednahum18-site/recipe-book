@@ -90,6 +90,23 @@ export default {
     })
   },
 
+  // Admin - Translate & Scan
+  translateFields(texts, sourceLang, targetLang) {
+    return client.post('/admin/translate', {
+      texts,
+      source_lang: sourceLang,
+      target_lang: targetLang
+    })
+  },
+  scanRecipe(file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return client.post('/admin/scan-recipe', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000
+    })
+  },
+
   // Admin - Categories
   createCategory(data) {
     return client.post('/admin/categories', data)
