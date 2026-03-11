@@ -24,7 +24,7 @@ const form = ref({
   recipe_of: { en: '', he: '' },
   category_ids: [],
   tags: [],
-  ingredients: [{ text: { en: '', he: '' }, amount: '', unit: '' }],
+  ingredients: [{ text: { en: '', he: '' }, amount: '', unit: { en: '', he: '' } }],
   steps: { en: '', he: '' },
   images: [],
   published: false
@@ -48,8 +48,13 @@ onMounted(async () => {
           category_ids: recipe.category_ids || (recipe.category_id ? [recipe.category_id] : []),
           tags: recipe.tags || [],
           ingredients: recipe.ingredients?.length
-            ? recipe.ingredients
-            : [{ text: { en: '', he: '' }, amount: '', unit: '' }],
+            ? recipe.ingredients.map(ing => ({
+                ...ing,
+                unit: typeof ing.unit === 'string'
+                  ? (/[\u0590-\u05FF]/.test(ing.unit) ? { en: '', he: ing.unit } : { en: ing.unit, he: '' })
+                  : (ing.unit || { en: '', he: '' })
+              }))
+            : [{ text: { en: '', he: '' }, amount: '', unit: { en: '', he: '' } }],
           steps: recipe.steps || { en: '', he: '' },
           images: recipe.images || [],
           published: recipe.published || false
@@ -64,7 +69,7 @@ onMounted(async () => {
 })
 
 function addIngredient() {
-  form.value.ingredients.push({ text: { en: '', he: '' }, amount: '', unit: '' })
+  form.value.ingredients.push({ text: { en: '', he: '' }, amount: '', unit: { en: '', he: '' } })
 }
 
 function removeIngredient(index) {
@@ -105,6 +110,9 @@ async function translateAll() {
     if (ing.text[sourceLang]) {
       texts.push({ field: `ingredient_${idx}`, value: ing.text[sourceLang], format: 'text' })
     }
+    if (ing.unit?.[sourceLang]) {
+      texts.push({ field: `ingredient_unit_${idx}`, value: ing.unit[sourceLang], format: 'text' })
+    }
   })
 
   translating.value = true
@@ -117,6 +125,8 @@ async function translateAll() {
     form.value.ingredients.forEach((ing, idx) => {
       const key = `ingredient_${idx}`
       if (t[key]) ing.text[targetLang] = t[key]
+      const unitKey = `ingredient_unit_${idx}`
+      if (t[unitKey]) ing.unit[targetLang] = t[unitKey]
     })
     ElMessage.success(targetLang === 'he' ? '\u05d4\u05ea\u05e8\u05d2\u05d5\u05dd \u05d4\u05d5\u05e9\u05dc\u05dd!' : 'Translation complete!')
     activeLangTab.value = targetLang
@@ -157,7 +167,7 @@ async function handleScan(event) {
       form.value.ingredients = result.ingredients.map(ing => ({
         text: { en: '', he: '', [lang]: ing.text || '' },
         amount: ing.amount || '',
-        unit: ing.unit || ''
+        unit: { en: '', he: '', [lang]: ing.unit || '' }
       }))
     }
     if (result.steps) form.value.steps[lang] = result.steps
@@ -347,7 +357,7 @@ function getCategoryName(cat) {
       <label class="form-label">{{ $t('admin.ingredients') }}</label>
       <div v-for="(ing, idx) in form.ingredients" :key="idx" class="ingredient-row">
         <el-input v-model="ing.amount" placeholder="Amount" style="width: 100px" />
-        <el-input v-model="ing.unit" placeholder="Unit" style="width: 80px" />
+        <el-input v-model="ing.unit[activeLangTab]" placeholder="Unit" style="width: 80px" />
         <el-input
           v-model="ing.text[activeLangTab]"
           :placeholder="activeLangTab === 'en' ? 'Ingredient' : '\u05de\u05e6\u05e8\u05da'"

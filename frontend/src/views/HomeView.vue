@@ -63,6 +63,13 @@ function getTagName(tag) {
       <div class="tag-bar-inner">
         <span class="tag-label">{{ $t('tags.title') }}:</span>
         <button
+          class="tag-pill"
+          :class="{ active: !activeTag }"
+          @click="recipesStore.setFilter('tag', null)"
+        >
+          {{ $t('tags.all') }}
+        </button>
+        <button
           v-for="tag in tags"
           :key="tag.slug"
           class="tag-pill"

@@ -42,7 +42,7 @@ class BilingualText(BaseModel):
 class IngredientInput(BaseModel):
     text: BilingualText
     amount: str
-    unit: Optional[str] = ""
+    unit: Optional[dict] = None
 
 
 class RecipeCreate(BaseModel):

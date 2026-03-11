@@ -134,7 +134,7 @@ function shareWhatsApp() {
             <span v-if="checkedIngredients.has(idx)">&#10003;</span>
           </div>
           <span :class="{ 'checked-text': checkedIngredients.has(idx) }">
-            {{ ing.amount }} {{ ing.unit }} {{ ing.text?.[locale] || ing.text?.en || '' }}
+            {{ ing.amount }} {{ typeof ing.unit === 'object' ? (ing.unit?.[locale] || ing.unit?.en || '') : (ing.unit || '') }} {{ ing.text?.[locale] || ing.text?.en || '' }}
           </span>
         </li>
       </ul>
