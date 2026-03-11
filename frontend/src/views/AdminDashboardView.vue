@@ -29,9 +29,12 @@ function getRecipeName(recipe) {
   return recipe.name?.[localeStore.locale] || recipe.name?.en || ''
 }
 
-function getCategoryName(categoryId) {
-  const cat = categoriesStore.getCategoryById(categoryId)
-  return cat?.name?.[localeStore.locale] || cat?.name?.en || ''
+function getCategoryNames(recipe) {
+  const ids = recipe.category_ids || (recipe.category_id ? [recipe.category_id] : [])
+  return ids.map(id => {
+    const cat = categoriesStore.getCategoryById(id)
+    return cat?.name?.[localeStore.locale] || cat?.name?.en || ''
+  }).filter(Boolean).join(', ')
 }
 
 async function deleteRecipe(recipe) {
@@ -65,6 +68,7 @@ async function deleteRecipe(recipe) {
 
     <div class="admin-links">
       <el-button @click="router.push('/admin/invite')">{{ $t('admin.users') }}</el-button>
+      <el-button @click="router.push('/admin/categories')">{{ $t('admin.manageCategories') }}</el-button>
     </div>
 
     <div v-if="loading" class="skeleton-table">
@@ -87,9 +91,9 @@ async function deleteRecipe(recipe) {
           <strong>{{ getRecipeName(row) }}</strong>
         </template>
       </el-table-column>
-      <el-table-column :label="$t('admin.category')" width="150">
+      <el-table-column :label="$t('admin.categories')" width="200">
         <template #default="{ row }">
-          {{ getCategoryName(row.category_id) }}
+          {{ getCategoryNames(row) }}
         </template>
       </el-table-column>
       <el-table-column :label="$t('admin.status')" width="120">

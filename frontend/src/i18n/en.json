@@ -18,9 +18,14 @@
     "steps": "Preparation Steps",
     "servings": "Servings",
     "noRecipes": "No recipes found",
-    "stars": "stars"
+    "stars": "stars",
+    "recipeOf": "Recipe of"
   },
   "category": {
+    "all": "All"
+  },
+  "tags": {
+    "title": "Dietary",
     "all": "All"
   },
   "admin": {
@@ -29,7 +34,10 @@
     "editRecipe": "Edit Recipe",
     "createRecipe": "Create New Recipe",
     "recipeName": "Recipe Name",
+    "recipeOf": "Recipe Of",
     "category": "Category",
+    "categories": "Categories",
+    "tags": "Dietary Tags",
     "ingredients": "Ingredients",
     "addIngredient": "Add Ingredient",
     "prepSteps": "Preparation Steps",
@@ -45,6 +53,14 @@
     "users": "Users",
     "inviteUser": "Invite User",
     "manageCategories": "Manage Categories",
+    "addCategory": "Add Category",
+    "editCategory": "Edit Category",
+    "categoryName": "Category Name",
+    "categoryIcon": "Icon",
+    "categoryOrder": "Order",
+    "categorySaved": "Category saved",
+    "categoryDeleted": "Category deleted",
+    "cantDeleteWithRecipes": "Cannot delete a category that has recipes",
     "requiredBothLangs": "Required in both languages",
     "browseFiles": "Browse Files",
     "takePhoto": "Take Photo",

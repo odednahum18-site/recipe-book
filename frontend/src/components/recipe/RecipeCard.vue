@@ -15,10 +15,12 @@ const name = computed(() => {
   return n?.[localeStore.locale] || n?.en || n?.he || ''
 })
 
-const categoryName = computed(() => {
-  const cat = categoriesStore.getCategoryById(props.recipe.category_id)
-  if (!cat) return ''
-  return cat.name?.[localeStore.locale] || cat.name?.en || ''
+const categoryNames = computed(() => {
+  const ids = props.recipe.category_ids || (props.recipe.category_id ? [props.recipe.category_id] : [])
+  return ids.map(id => {
+    const cat = categoriesStore.getCategoryById(id)
+    return cat?.name?.[localeStore.locale] || cat?.name?.en || ''
+  }).filter(Boolean)
 })
 
 const thumbnail = computed(() => {
@@ -37,7 +39,9 @@ const thumbnail = computed(() => {
       <div v-else class="recipe-placeholder">&#127859;</div>
     </div>
     <div class="recipe-info">
-      <span class="recipe-category-badge">{{ categoryName }}</span>
+      <div class="recipe-badges">
+        <span v-for="catName in categoryNames" :key="catName" class="recipe-category-badge">{{ catName }}</span>
+      </div>
       <div class="recipe-name">{{ name }}</div>
       <div class="recipe-meta">
         <span class="recipe-stars">&#9733; {{ recipe.star_count || 0 }}</span>
@@ -88,6 +92,13 @@ const thumbnail = computed(() => {
   padding: 16px;
 }
 
+.recipe-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
 .recipe-category-badge {
   display: inline-block;
   padding: 3px 10px;
@@ -96,7 +107,6 @@ const thumbnail = computed(() => {
   color: var(--accent);
   font-size: 0.75rem;
   font-weight: 600;
-  margin-bottom: 8px;
 }
 
 .recipe-name {

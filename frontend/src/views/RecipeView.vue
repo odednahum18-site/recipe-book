@@ -6,6 +6,7 @@ import { useRecipesStore } from '@/stores/recipes'
 import { useLocaleStore } from '@/stores/locale'
 import { useCategoriesStore } from '@/stores/categories'
 import { useStarsStore } from '@/stores/stars'
+import api from '@/api'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -14,11 +15,17 @@ const localeStore = useLocaleStore()
 const categoriesStore = useCategoriesStore()
 const starsStore = useStarsStore()
 const checkedIngredients = ref(new Set())
+const allTags = ref([])
 
 onMounted(async () => {
   await recipesStore.fetchRecipe(route.params.slug)
   if (recipesStore.currentRecipe) {
     starsStore.checkStarred(recipesStore.currentRecipe.id)
+  }
+  try {
+    allTags.value = await api.getTags()
+  } catch (e) {
+    // Tags are non-critical
   }
 })
 
@@ -26,13 +33,25 @@ const recipe = computed(() => recipesStore.currentRecipe)
 const locale = computed(() => localeStore.locale)
 
 const name = computed(() => recipe.value?.name?.[locale.value] || recipe.value?.name?.en || '')
+const recipeOf = computed(() => recipe.value?.recipe_of?.[locale.value] || recipe.value?.recipe_of?.en || '')
 const steps = computed(() => recipe.value?.steps?.[locale.value] || recipe.value?.steps?.en || '')
 const ingredients = computed(() => recipe.value?.ingredients || [])
 
-const categoryName = computed(() => {
-  if (!recipe.value) return ''
-  const cat = categoriesStore.getCategoryById(recipe.value.category_id)
-  return cat?.name?.[locale.value] || cat?.name?.en || ''
+const categoryNames = computed(() => {
+  if (!recipe.value) return []
+  const ids = recipe.value.category_ids || (recipe.value.category_id ? [recipe.value.category_id] : [])
+  return ids.map(id => {
+    const cat = categoriesStore.getCategoryById(id)
+    return cat?.name?.[locale.value] || cat?.name?.en || ''
+  }).filter(Boolean)
+})
+
+const recipeTags = computed(() => {
+  if (!recipe.value?.tags?.length) return []
+  return recipe.value.tags.map(slug => {
+    const tag = allTags.value.find(t => t.slug === slug)
+    return tag?.name?.[locale.value] || tag?.name?.en || slug
+  })
 })
 
 const isStarred = computed(() => recipe.value && starsStore.isStarred(recipe.value.id))
@@ -82,8 +101,12 @@ function shareWhatsApp() {
     </div>
 
     <div class="recipe-body">
-      <span class="recipe-category-badge">{{ categoryName }}</span>
+      <div class="recipe-badges">
+        <span v-for="catName in categoryNames" :key="catName" class="recipe-category-badge">{{ catName }}</span>
+        <span v-for="tagName in recipeTags" :key="tagName" class="recipe-tag-badge">{{ tagName }}</span>
+      </div>
       <h1>{{ name }}</h1>
+      <p v-if="recipeOf" class="recipe-of">{{ $t('recipe.recipeOf') }} {{ recipeOf }}</p>
 
       <!-- Actions row -->
       <div class="actions-row no-print">
@@ -160,6 +183,13 @@ function shareWhatsApp() {
   padding: 24px;
 }
 
+.recipe-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
 .recipe-category-badge {
   display: inline-block;
   padding: 4px 12px;
@@ -168,13 +198,30 @@ function shareWhatsApp() {
   color: var(--accent);
   font-size: 0.8rem;
   font-weight: 600;
-  margin-bottom: 12px;
+}
+
+.recipe-tag-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 50px;
+  background: var(--category-bg);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+}
+
+.recipe-of {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-bottom: 16px;
 }
 
 .recipe-body h1 {
   font-size: 1.8rem;
   font-weight: 800;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .actions-row {

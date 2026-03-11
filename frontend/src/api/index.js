@@ -56,6 +56,11 @@ export default {
     return client.get('/categories')
   },
 
+  // Public - Tags
+  getTags() {
+    return client.get('/tags')
+  },
+
   // Public - Stars
   starRecipe(recipeId, visitorId) {
     return client.post(`/recipes/${recipeId}/star`, { visitor_id: visitorId })
@@ -70,6 +75,9 @@ export default {
   // Admin - Recipes
   getAdminRecipes() {
     return client.get('/admin/recipes')
+  },
+  getAdminRecipe(id) {
+    return client.get(`/admin/recipes/${id}`)
   },
   createRecipe(data) {
     return client.post('/admin/recipes', data)
@@ -116,6 +124,9 @@ export default {
   },
   deleteCategory(id) {
     return client.delete(`/admin/categories/${id}`)
+  },
+  reorderCategories(order) {
+    return client.put('/admin/categories/reorder', order)
   },
 
   // Admin - Users

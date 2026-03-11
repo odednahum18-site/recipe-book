@@ -1,15 +1,26 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRecipesStore } from '@/stores/recipes'
+import { useLocaleStore } from '@/stores/locale'
 import CategoryBar from '@/components/category/CategoryBar.vue'
 import RecipeCard from '@/components/recipe/RecipeCard.vue'
+import api from '@/api'
 
 const recipesStore = useRecipesStore()
+const localeStore = useLocaleStore()
 const searchText = ref('')
+const tags = ref([])
 let searchTimeout = null
 
-onMounted(() => {
+const activeTag = computed(() => recipesStore.filters.tag)
+
+onMounted(async () => {
   recipesStore.fetchRecipes(true)
+  try {
+    tags.value = await api.getTags()
+  } catch (e) {
+    // Tags are non-critical
+  }
 })
 
 function onSearch() {
@@ -17,6 +28,14 @@ function onSearch() {
   searchTimeout = setTimeout(() => {
     recipesStore.setFilter('search', searchText.value)
   }, 400)
+}
+
+function selectTag(slug) {
+  recipesStore.setFilter('tag', slug === activeTag.value ? null : slug)
+}
+
+function getTagName(tag) {
+  return tag.name?.[localeStore.locale] || tag.name?.en || ''
 }
 </script>
 
@@ -38,6 +57,22 @@ function onSearch() {
     </section>
 
     <CategoryBar />
+
+    <!-- Tag filter pills -->
+    <div v-if="tags.length" class="tag-bar">
+      <div class="tag-bar-inner">
+        <span class="tag-label">{{ $t('tags.title') }}:</span>
+        <button
+          v-for="tag in tags"
+          :key="tag.slug"
+          class="tag-pill"
+          :class="{ active: activeTag === tag.slug }"
+          @click="selectTag(tag.slug)"
+        >
+          {{ getTagName(tag) }}
+        </button>
+      </div>
+    </div>
 
     <div v-if="recipesStore.loading" class="skeleton-grid">
       <el-skeleton v-for="n in 6" :key="n" animated>
@@ -131,6 +166,52 @@ function onSearch() {
   right: 14px;
 }
 
+.tag-bar {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.tag-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tag-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.tag-pill {
+  padding: 5px 14px;
+  border-radius: 50px;
+  background: var(--category-bg);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+
+.tag-pill:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.tag-pill.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
 .empty-state {
   max-width: 600px;
   margin: 40px auto;
@@ -141,5 +222,6 @@ function onSearch() {
 @media (max-width: 768px) {
   .hero h1 { font-size: 1.7rem; }
   .hero { padding: 32px 16px 24px; }
+  .tag-bar { padding: 0 12px; }
 }
 </style>

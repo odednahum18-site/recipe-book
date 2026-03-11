@@ -41,6 +41,12 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/admin/categories',
+    name: 'ManageCategories',
+    component: () => import('@/views/CategoryManageView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/admin/invite',
     name: 'Invite',
     component: () => import('@/views/InviteView.vue'),

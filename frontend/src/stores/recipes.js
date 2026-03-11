@@ -12,6 +12,7 @@ export const useRecipesStore = defineStore('recipes', {
     error: null,
     filters: {
       category: null,
+      tag: null,
       search: '',
       sort: 'newest'
     }
@@ -32,6 +33,7 @@ export const useRecipesStore = defineStore('recipes', {
           sort: this.filters.sort
         }
         if (this.filters.category) params.category = this.filters.category
+        if (this.filters.tag) params.tag = this.filters.tag
         if (this.filters.search) params.search = this.filters.search
 
         const result = await api.getRecipes(params)
@@ -63,7 +65,7 @@ export const useRecipesStore = defineStore('recipes', {
     },
 
     clearFilters() {
-      this.filters = { category: null, search: '', sort: 'newest' }
+      this.filters = { category: null, tag: null, search: '', sort: 'newest' }
       this.fetchRecipes(true)
     }
   }

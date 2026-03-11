@@ -17,10 +17,13 @@ const isEditing = computed(() => !!route.params.id)
 const loading = ref(false)
 const saving = ref(false)
 const activeLangTab = ref('en')
+const tags = ref([])
 
 const form = ref({
   name: { en: '', he: '' },
-  category_id: '',
+  recipe_of: { en: '', he: '' },
+  category_ids: [],
+  tags: [],
   ingredients: [{ text: { en: '', he: '' }, amount: '', unit: '' }],
   steps: { en: '', he: '' },
   images: [],
@@ -28,15 +31,22 @@ const form = ref({
 })
 
 onMounted(async () => {
+  try {
+    tags.value = await api.getTags()
+  } catch (e) {
+    // Tags are non-critical
+  }
+
   if (isEditing.value) {
     loading.value = true
     try {
-      const recipes = await api.getAdminRecipes()
-      const recipe = recipes.find(r => r.id === route.params.id)
+      const recipe = await api.getAdminRecipe(route.params.id)
       if (recipe) {
         form.value = {
           name: recipe.name || { en: '', he: '' },
-          category_id: recipe.category_id || '',
+          recipe_of: recipe.recipe_of || { en: '', he: '' },
+          category_ids: recipe.category_ids || (recipe.category_id ? [recipe.category_id] : []),
+          tags: recipe.tags || [],
           ingredients: recipe.ingredients?.length
             ? recipe.ingredients
             : [{ text: { en: '', he: '' }, amount: '', unit: '' }],
@@ -71,6 +81,7 @@ async function translateAll() {
 
   // Check if target already has content
   const hasTarget = form.value.name[targetLang] ||
+    form.value.recipe_of[targetLang] ||
     form.value.ingredients.some(i => i.text[targetLang]) ||
     form.value.steps[targetLang]
 
@@ -87,6 +98,7 @@ async function translateAll() {
   // Build batch request
   const texts = [
     { field: 'name', value: form.value.name[sourceLang], format: 'text' },
+    { field: 'recipe_of', value: form.value.recipe_of[sourceLang], format: 'text' },
     { field: 'steps', value: form.value.steps[sourceLang], format: 'html' },
   ]
   form.value.ingredients.forEach((ing, idx) => {
@@ -100,12 +112,13 @@ async function translateAll() {
     const result = await api.translateFields(texts, sourceLang, targetLang)
     const t = result.translations
     if (t.name) form.value.name[targetLang] = t.name
+    if (t.recipe_of) form.value.recipe_of[targetLang] = t.recipe_of
     if (t.steps) form.value.steps[targetLang] = t.steps
     form.value.ingredients.forEach((ing, idx) => {
       const key = `ingredient_${idx}`
       if (t[key]) ing.text[targetLang] = t[key]
     })
-    ElMessage.success(targetLang === 'he' ? 'התרגום הושלם!' : 'Translation complete!')
+    ElMessage.success(targetLang === 'he' ? '\u05d4\u05ea\u05e8\u05d2\u05d5\u05dd \u05d4\u05d5\u05e9\u05dc\u05dd!' : 'Translation complete!')
     activeLangTab.value = targetLang
   } catch (e) {
     ElMessage.error(e.message || 'Translation failed')
@@ -150,7 +163,7 @@ async function handleScan(event) {
     if (result.steps) form.value.steps[lang] = result.steps
 
     activeLangTab.value = lang
-    ElMessage.success(lang === 'he' ? 'המתכון נסרק בהצלחה!' : 'Recipe scanned successfully!')
+    ElMessage.success(lang === 'he' ? '\u05d4\u05de\u05ea\u05db\u05d5\u05df \u05e0\u05e1\u05e8\u05e7 \u05d1\u05d4\u05e6\u05dc\u05d7\u05d4!' : 'Recipe scanned successfully!')
   } catch (e) {
     ElMessage.error(e.message || 'Scan failed')
   } finally {
@@ -195,13 +208,19 @@ function removeImage(index) {
   form.value.images.splice(index, 1)
 }
 
+function getTagName(slug) {
+  const tag = tags.value.find(t => t.slug === slug)
+  if (!tag) return slug
+  return tag.name?.[localeStore.locale] || tag.name?.en || slug
+}
+
 async function save(publish = false) {
   if (!form.value.name.en || !form.value.name.he) {
     ElMessage.warning('Recipe name is required in both languages')
     return
   }
-  if (!form.value.category_id) {
-    ElMessage.warning('Please select a category')
+  if (!form.value.category_ids.length) {
+    ElMessage.warning('Please select at least one category')
     return
   }
 
@@ -286,10 +305,20 @@ function getCategoryName(cat) {
       />
     </div>
 
-    <!-- Category -->
+    <!-- Recipe Of -->
     <div class="form-group">
-      <label class="form-label">{{ $t('admin.category') }}</label>
-      <el-select v-model="form.category_id" :placeholder="$t('admin.category')" size="large" style="width: 100%">
+      <label class="form-label">{{ $t('admin.recipeOf') }}</label>
+      <el-input
+        v-model="form.recipe_of[activeLangTab]"
+        :placeholder="activeLangTab === 'en' ? 'e.g. Grandma Sarah' : '\u05dc\u05de\u05e9\u05dc \u05e1\u05d1\u05ea\u05d0 \u05e9\u05e8\u05d4'"
+        :dir="activeLangTab === 'he' ? 'rtl' : 'ltr'"
+      />
+    </div>
+
+    <!-- Categories (multi-select) -->
+    <div class="form-group">
+      <label class="form-label">{{ $t('admin.categories') }}</label>
+      <el-select v-model="form.category_ids" multiple :placeholder="$t('admin.category')" size="large" style="width: 100%">
         <el-option
           v-for="cat in categoriesStore.categories"
           :key="cat.id"
@@ -297,6 +326,20 @@ function getCategoryName(cat) {
           :value="cat.id"
         />
       </el-select>
+    </div>
+
+    <!-- Tags -->
+    <div class="form-group" v-if="tags.length">
+      <label class="form-label">{{ $t('admin.tags') }}</label>
+      <el-checkbox-group v-model="form.tags">
+        <el-checkbox
+          v-for="tag in tags"
+          :key="tag.slug"
+          :value="tag.slug"
+        >
+          {{ getTagName(tag.slug) }}
+        </el-checkbox>
+      </el-checkbox-group>
     </div>
 
     <!-- Ingredients -->

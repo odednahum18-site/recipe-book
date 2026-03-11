@@ -23,6 +23,28 @@ export const useCategoriesStore = defineStore('categories', {
       } finally {
         this.loading = false
       }
+    },
+
+    async createCategory(data) {
+      const result = await api.createCategory(data)
+      await this.fetchCategories()
+      return result
+    },
+
+    async updateCategory(id, data) {
+      const result = await api.updateCategory(id, data)
+      await this.fetchCategories()
+      return result
+    },
+
+    async deleteCategory(id) {
+      await api.deleteCategory(id)
+      await this.fetchCategories()
+    },
+
+    async reorderCategories(order) {
+      await api.reorderCategories(order)
+      await this.fetchCategories()
     }
   }
 })

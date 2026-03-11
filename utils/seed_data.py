@@ -10,9 +10,8 @@ INITIAL_CATEGORIES = [
     {"slug": "desserts", "name": {"en": "Desserts", "he": "\u05e7\u05d9\u05e0\u05d5\u05d7\u05d9\u05dd"}, "icon": "cake", "order": 3},
     {"slug": "salads", "name": {"en": "Salads", "he": "\u05e1\u05dc\u05d8\u05d9\u05dd"}, "icon": "salad", "order": 4},
     {"slug": "soups", "name": {"en": "Soups", "he": "\u05de\u05e8\u05e7\u05d9\u05dd"}, "icon": "soup", "order": 5},
-    {"slug": "beverages", "name": {"en": "Beverages", "he": "\u05de\u05e9\u05e7\u05d0\u05d5\u05ea"}, "icon": "drink", "order": 6},
-    {"slug": "bread-pastry", "name": {"en": "Bread & Pastry", "he": "\u05dc\u05d7\u05dd \u05d5\u05de\u05d0\u05e4\u05d9\u05dd"}, "icon": "bread", "order": 7},
-    {"slug": "side-dishes", "name": {"en": "Side Dishes", "he": "\u05ea\u05d5\u05e1\u05e4\u05d5\u05ea"}, "icon": "sides", "order": 8},
+    {"slug": "bread-pastry", "name": {"en": "Bread & Pastry", "he": "\u05dc\u05d7\u05dd \u05d5\u05de\u05d0\u05e4\u05d9\u05dd"}, "icon": "bread", "order": 6},
+    {"slug": "side-dishes", "name": {"en": "Side Dishes", "he": "\u05ea\u05d5\u05e1\u05e4\u05d5\u05ea"}, "icon": "sides", "order": 7},
 ]
 
 

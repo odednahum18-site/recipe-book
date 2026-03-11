@@ -47,7 +47,9 @@ class IngredientInput(BaseModel):
 
 class RecipeCreate(BaseModel):
     name: BilingualText
-    category_id: str
+    recipe_of: Optional[BilingualText] = None
+    category_ids: List[str]
+    tags: Optional[List[str]] = []
     ingredients: List[IngredientInput]
     steps: BilingualText
     images: Optional[List[dict]] = []
@@ -56,7 +58,9 @@ class RecipeCreate(BaseModel):
 
 class RecipeUpdate(BaseModel):
     name: Optional[BilingualText] = None
-    category_id: Optional[str] = None
+    recipe_of: Optional[BilingualText] = None
+    category_ids: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
     ingredients: Optional[List[IngredientInput]] = None
     steps: Optional[BilingualText] = None
     images: Optional[List[dict]] = None
@@ -76,6 +80,11 @@ class CategoryCreate(BaseModel):
     name: BilingualText
     icon: Optional[str] = ""
     order: Optional[int] = 0
+
+
+class CategoryOrderItem(BaseModel):
+    id: str
+    order: int
 
 
 class GoogleLoginRequest(BaseModel):
@@ -99,6 +108,17 @@ class TranslateRequest(BaseModel):
     target_lang: str
 
 
+# ── Constants ────────────────────────────────────────────────────
+
+DIETARY_TAGS = [
+    {"slug": "meat", "name": {"en": "Meat", "he": "\u05d1\u05e9\u05e8\u05d9"}},
+    {"slug": "dairy", "name": {"en": "Dairy", "he": "\u05d7\u05dc\u05d1\u05d9"}},
+    {"slug": "parve", "name": {"en": "Parve", "he": "\u05e4\u05e8\u05d5\u05d5\u05d4"}},
+    {"slug": "fish", "name": {"en": "Fish", "he": "\u05d3\u05d2\u05d9\u05dd"}},
+    {"slug": "chicken", "name": {"en": "Chicken", "he": "\u05e2\u05d5\u05e3"}},
+]
+
+
 # ── Helpers ──────────────────────────────────────────────────────
 
 def _slugify(text: str) -> str:
@@ -110,10 +130,18 @@ def _slugify(text: str) -> str:
     return slug
 
 
-def _update_category_count(category_id: str):
-    """Recalculate recipe_count for a category."""
-    count = db.count("recipes", {"category_id": category_id, "published": True})
-    db.update("categories", category_id, {"recipe_count": count})
+def _update_category_counts(category_ids: list[str]):
+    """Recalculate recipe_count for multiple categories in a single pass."""
+    if not category_ids:
+        return
+    recipes = db.query("recipes", {"published": True})
+    counts = {cid: 0 for cid in category_ids}
+    for r in recipes:
+        for cid in r.get("category_ids", []):
+            if cid in counts:
+                counts[cid] += 1
+    for cid, count in counts.items():
+        db.update("categories", cid, {"recipe_count": count})
 
 
 def _star_id(recipe_id: str, visitor_id: str) -> str:
@@ -126,6 +154,21 @@ def _star_id(recipe_id: str, visitor_id: str) -> str:
 _index_html_cache: Optional[str] = None
 
 
+def _migrate_category_id_to_ids():
+    """Migrate recipes from category_id (string) to category_ids (list)."""
+    recipes = db.get_all("recipes")
+    migrated = 0
+    for recipe in recipes:
+        if "category_id" in recipe and "category_ids" not in recipe:
+            cat_id = recipe["category_id"]
+            db.update("recipes", recipe["id"], {
+                "category_ids": [cat_id] if cat_id else [],
+            })
+            migrated += 1
+    if migrated:
+        logger.info(f"Migrated {migrated} recipes from category_id to category_ids")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _index_html_cache
@@ -134,6 +177,7 @@ async def lifespan(app: FastAPI):
         logger.info("Seeded initial categories")
     if result["admin_seeded"]:
         logger.info("Seeded admin user")
+    _migrate_category_id_to_ids()
     # Cache index.html for SPA serving
     index_path = os.path.join(STATIC_DIR, "index.html")
     try:
@@ -278,9 +322,15 @@ async def list_categories():
 
 # ── Public: Recipes ──────────────────────────────────────────────
 
+@app.get("/api/tags")
+async def list_tags():
+    return DIETARY_TAGS
+
+
 @app.get("/api/recipes")
 async def list_recipes(
     category: Optional[str] = Query(None, description="Filter by category slug"),
+    tag: Optional[str] = Query(None, description="Filter by tag slug"),
     search: Optional[str] = Query(None, description="Search by name"),
     sort: Optional[str] = Query("newest", description="Sort: newest, stars, name"),
     page: int = Query(1, ge=1),
@@ -292,7 +342,11 @@ async def list_recipes(
     if category:
         cat = db.get_by_field("categories", "slug", category)
         if cat:
-            recipes = [r for r in recipes if r.get("category_id") == cat["id"]]
+            recipes = [r for r in recipes if cat["id"] in r.get("category_ids", [])]
+
+    # Filter by tag
+    if tag:
+        recipes = [r for r in recipes if tag in r.get("tags", [])]
 
     # Search by name
     if search:
@@ -378,6 +432,14 @@ async def admin_list_recipes(user: dict = Depends(get_admin_user)):
     return recipes
 
 
+@app.get("/api/admin/recipes/{recipe_id}")
+async def admin_get_recipe(recipe_id: str, user: dict = Depends(get_admin_user)):
+    recipe = db.get_by_id("recipes", recipe_id)
+    if not recipe:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    return recipe
+
+
 @app.post("/api/admin/recipes")
 async def create_recipe(recipe: RecipeCreate, user: dict = Depends(get_admin_user)):
     slug = _slugify(recipe.name.en)
@@ -390,7 +452,9 @@ async def create_recipe(recipe: RecipeCreate, user: dict = Depends(get_admin_use
     data = {
         "slug": slug,
         "name": recipe.name.model_dump(),
-        "category_id": recipe.category_id,
+        "recipe_of": recipe.recipe_of.model_dump() if recipe.recipe_of else None,
+        "category_ids": recipe.category_ids,
+        "tags": recipe.tags or [],
         "ingredients": [i.model_dump() for i in recipe.ingredients],
         "steps": recipe.steps.model_dump(),
         "images": recipe.images or [],
@@ -401,7 +465,7 @@ async def create_recipe(recipe: RecipeCreate, user: dict = Depends(get_admin_use
     created = db.create("recipes", data)
 
     if recipe.published:
-        _update_category_count(recipe.category_id)
+        _update_category_counts(recipe.category_ids)
 
     return created
 
@@ -416,8 +480,12 @@ async def update_recipe(recipe_id: str, recipe: RecipeUpdate, user: dict = Depen
     if recipe.name is not None:
         update_data["name"] = recipe.name.model_dump()
         update_data["slug"] = _slugify(recipe.name.en)
-    if recipe.category_id is not None:
-        update_data["category_id"] = recipe.category_id
+    if recipe.recipe_of is not None:
+        update_data["recipe_of"] = recipe.recipe_of.model_dump()
+    if recipe.category_ids is not None:
+        update_data["category_ids"] = recipe.category_ids
+    if recipe.tags is not None:
+        update_data["tags"] = recipe.tags
     if recipe.ingredients is not None:
         update_data["ingredients"] = [i.model_dump() for i in recipe.ingredients]
     if recipe.steps is not None:
@@ -429,15 +497,13 @@ async def update_recipe(recipe_id: str, recipe: RecipeUpdate, user: dict = Depen
 
     updated = db.update("recipes", recipe_id, update_data)
 
-    # Update category counts only if category or published status changed
-    old_cat = existing.get("category_id")
-    new_cat = update_data.get("category_id", old_cat)
+    # Update category counts if categories or published status changed
+    old_cats = set(existing.get("category_ids", []))
+    new_cats = set(update_data.get("category_ids", old_cats))
     pub_changed = "published" in update_data and update_data["published"] != existing.get("published")
-    cat_changed = new_cat != old_cat
-    if pub_changed or cat_changed:
-        _update_category_count(old_cat)
-        if cat_changed:
-            _update_category_count(new_cat)
+    cats_changed = new_cats != old_cats
+    if pub_changed or cats_changed:
+        _update_category_counts(list(old_cats | new_cats))
 
     return updated
 
@@ -453,7 +519,7 @@ async def delete_recipe(recipe_id: str, user: dict = Depends(get_admin_user)):
         delete_image(img.get("url", ""))
 
     db.delete("recipes", recipe_id)
-    _update_category_count(existing.get("category_id", ""))
+    _update_category_counts(existing.get("category_ids", []))
     return {"message": "Recipe deleted"}
 
 
@@ -490,6 +556,13 @@ async def create_category(cat: CategoryCreate, user: dict = Depends(get_admin_us
     return db.create("categories", data)
 
 
+@app.put("/api/admin/categories/reorder")
+async def reorder_categories(order: List[CategoryOrderItem], user: dict = Depends(get_admin_user)):
+    for item in order:
+        db.update("categories", item.id, {"order": item.order})
+    return {"message": "Reordered"}
+
+
 @app.put("/api/admin/categories/{category_id}")
 async def update_category(category_id: str, cat: CategoryCreate, user: dict = Depends(get_admin_user)):
     existing = db.get_by_id("categories", category_id)
@@ -507,12 +580,13 @@ async def update_category(category_id: str, cat: CategoryCreate, user: dict = De
 
 @app.delete("/api/admin/categories/{category_id}")
 async def delete_category(category_id: str, user: dict = Depends(get_admin_user)):
-    recipes = db.query("recipes", {"category_id": category_id})
-    if recipes:
+    existing = db.get_by_id("categories", category_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Category not found")
+    if existing.get("recipe_count", 0) > 0:
         raise HTTPException(status_code=400, detail="Cannot delete category with recipes")
 
-    if not db.delete("categories", category_id):
-        raise HTTPException(status_code=404, detail="Category not found")
+    db.delete("categories", category_id)
     return {"message": "Category deleted"}
 
 
