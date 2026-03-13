@@ -2,6 +2,7 @@
 Seed initial categories and admin user.
 """
 from utils.repository import db
+from utils.auth import hash_password
 from config import ADMIN_USERNAME, ADMIN_PASSWORD
 
 INITIAL_CATEGORIES = [
@@ -40,7 +41,7 @@ def seed_admin_user():
         "display_name": "Admin",
         "role": "admin",
         "username": ADMIN_USERNAME,
-        "password": ADMIN_PASSWORD,
+        "password": hash_password(ADMIN_PASSWORD) if ADMIN_PASSWORD else "",
         "invited_by": None,
     })
     return True

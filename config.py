@@ -30,8 +30,8 @@ UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 
 # Auth (local dev - JWT)
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123" if ENV_MODE == "local" else None)
+JWT_SECRET = os.getenv("JWT_SECRET", "dev-secret-change-in-production" if ENV_MODE == "local" else None)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", 1440))  # 24 hours
 

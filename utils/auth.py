@@ -6,10 +6,23 @@ Production: Firebase Auth token verification
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, AUTH_MODE
+
+
+# ── Password hashing ────────────────────────────────────────────
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    if not hashed or not hashed.startswith("$2b$"):
+        return plain == hashed  # legacy plaintext fallback
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
 security = HTTPBearer(auto_error=False)
 
@@ -87,10 +100,25 @@ async def get_current_user(
     return payload
 
 
-async def get_admin_user(user: dict = Depends(get_current_user)) -> dict:
+async def require_editor(user: dict = Depends(get_current_user)) -> dict:
+    """Require admin or editor role. Used for content management."""
     if user.get("role") not in ("admin", "editor"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions",
         )
     return user
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Require admin role only. Used for user management."""
+    if user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return user
+
+
+# Backward-compatible alias
+get_admin_user = require_editor

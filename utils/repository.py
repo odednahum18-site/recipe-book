@@ -107,6 +107,41 @@ class JSONRepository:
     def exists(self, collection: str, field: str, value: Any) -> bool:
         return self.get_by_field(collection, field, value) is not None
 
+    def query_recipes(
+        self,
+        category_id: Optional[str] = None,
+        tag: Optional[str] = None,
+        search: Optional[str] = None,
+        sort_by: str = "newest",
+        offset: int = 0,
+        limit: int = 12,
+    ) -> tuple:
+        """Query published recipes with filtering, sorting, and pagination.
+        Returns (results, total_count)."""
+        recipes = self.query("recipes", {"published": True})
+
+        if category_id:
+            recipes = [r for r in recipes if category_id in r.get("category_ids", [])]
+        if tag:
+            recipes = [r for r in recipes if tag in r.get("tags", [])]
+        if search:
+            search_lower = search.lower()
+            recipes = [
+                r for r in recipes
+                if search_lower in r.get("name", {}).get("en", "").lower()
+                or search_lower in r.get("name", {}).get("he", "")
+            ]
+
+        if sort_by == "stars":
+            recipes.sort(key=lambda r: r.get("star_count", 0), reverse=True)
+        elif sort_by == "name":
+            recipes.sort(key=lambda r: r.get("name", {}).get("en", "").lower())
+        else:
+            recipes.sort(key=lambda r: r.get("created_at", ""), reverse=True)
+
+        total = len(recipes)
+        return recipes[offset : offset + limit], total
+
 
 # Singleton - uses Firestore in production, JSON locally
 def _create_db():
