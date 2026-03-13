@@ -105,8 +105,9 @@ class FirestoreRepository:
             if not tag:
                 ref = ref.where("category_ids", "array_contains", category_id)
 
-        # Server-side sorting (only if no search — search needs client-side)
-        if not search:
+        # Server-side sorting only when no extra filters that need composite indexes
+        needs_client_sort = bool(search or tag or category_id)
+        if not needs_client_sort:
             if sort_by == "stars":
                 ref = ref.order_by("star_count", direction=firestore.Query.DESCENDING)
             elif sort_by == "name":
@@ -120,7 +121,6 @@ class FirestoreRepository:
 
         # Client-side filtering for cases Firestore can't handle
         if category_id and tag:
-            # category_id couldn't be applied server-side when tag was also used
             recipes = [r for r in recipes if category_id in r.get("category_ids", [])]
 
         if search:
@@ -130,7 +130,9 @@ class FirestoreRepository:
                 if search_lower in r.get("name", {}).get("en", "").lower()
                 or search_lower in r.get("name", {}).get("he", "")
             ]
-            # Sort client-side since search prevented server-side sorting
+
+        # Client-side sorting when server-side wasn't used
+        if needs_client_sort:
             if sort_by == "stars":
                 recipes.sort(key=lambda r: r.get("star_count", 0), reverse=True)
             elif sort_by == "name":
