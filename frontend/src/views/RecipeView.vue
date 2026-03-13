@@ -16,6 +16,36 @@ const categoriesStore = useCategoriesStore()
 const starsStore = useStarsStore()
 const checkedIngredients = ref(new Set())
 const allTags = ref([])
+const portionMultiplier = ref(1)
+
+const baseServings = computed(() => recipe.value?.servings || null)
+const currentServings = computed(() => baseServings.value ? Math.round(baseServings.value * portionMultiplier.value) : null)
+
+function adjustPortions(delta) {
+  const newVal = portionMultiplier.value + delta
+  if (newVal >= 0.25 && newVal <= 10) {
+    portionMultiplier.value = Math.round(newVal * 4) / 4 // snap to 0.25 increments
+  }
+}
+
+function scaleAmount(amount) {
+  if (!amount || portionMultiplier.value === 1) return amount
+  const num = parseFloat(amount)
+  if (isNaN(num)) return amount
+  const scaled = num * portionMultiplier.value
+  // Show clean fractions
+  if (scaled === Math.floor(scaled)) return String(scaled)
+  if (Math.abs(scaled - Math.round(scaled * 4) / 4) < 0.01) {
+    const rounded = Math.round(scaled * 4) / 4
+    if (rounded === Math.floor(rounded)) return String(rounded)
+    const whole = Math.floor(rounded)
+    const frac = rounded - whole
+    const fracs = { 0.25: '¼', 0.5: '½', 0.75: '¾' }
+    const fracStr = fracs[frac] || frac.toFixed(2)
+    return whole > 0 ? `${whole}${fracStr}` : fracStr
+  }
+  return scaled % 1 === 0 ? String(scaled) : scaled.toFixed(1)
+}
 
 onMounted(async () => {
   await recipesStore.fetchRecipe(route.params.slug)
@@ -78,6 +108,37 @@ function shareWhatsApp() {
   const text = `${t('share.shareText')} ${name.value} - ${window.location.href}`
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
 }
+
+// Focus Mode
+const focusMode = ref(false)
+const focusStep = ref(0)
+
+const parsedSteps = computed(() => {
+  const html = steps.value
+  if (!html) return []
+  // Try to extract from <ol>/<li> elements
+  const liMatch = html.match(/<li[^>]*>([\s\S]*?)<\/li>/gi)
+  if (liMatch && liMatch.length > 1) {
+    return liMatch.map(li => li.replace(/<\/?li[^>]*>/gi, '').trim())
+  }
+  // Fall back to splitting by <p> tags
+  const pMatch = html.match(/<p[^>]*>([\s\S]*?)<\/p>/gi)
+  if (pMatch && pMatch.length > 1) {
+    return pMatch.map(p => p.replace(/<\/?p[^>]*>/gi, '').trim()).filter(Boolean)
+  }
+  // Fall back to splitting by <br> or newlines
+  const parts = html.split(/<br\s*\/?>/gi).map(s => s.trim()).filter(Boolean)
+  return parts.length > 1 ? parts : [html]
+})
+
+function enterFocusMode() {
+  focusStep.value = 0
+  focusMode.value = true
+}
+
+function exitFocusMode() {
+  focusMode.value = false
+}
 </script>
 
 <template>
@@ -107,42 +168,79 @@ function shareWhatsApp() {
       </div>
       <h1>{{ name }}</h1>
       <p v-if="recipeOf" class="recipe-of">{{ $t('recipe.recipeOf') }} {{ recipeOf }}</p>
+      <div v-if="recipe.prep_time || recipe.difficulty" class="recipe-detail-meta">
+        <span v-if="recipe.prep_time" class="detail-meta-badge"><span aria-hidden="true">&#9200;</span> {{ recipe.prep_time }}</span>
+        <span v-if="recipe.difficulty" class="detail-meta-badge">{{ $t(`recipe.difficulty.${recipe.difficulty}`) }}</span>
+      </div>
 
       <!-- Actions row -->
       <div class="actions-row no-print">
         <div class="star-section">
-          <button class="star-btn" :class="{ active: isStarred }" @click="toggleStar">
-            {{ isStarred ? '&#9733;' : '&#9734;' }}
+          <button class="star-btn" :class="{ active: isStarred }" @click="toggleStar" :aria-label="isStarred ? $t('recipe.unstar') : $t('recipe.star')" :aria-pressed="isStarred">
+            <span aria-hidden="true">{{ isStarred ? '&#9733;' : '&#9734;' }}</span>
           </button>
-          <span class="star-count">{{ recipe.star_count || 0 }}</span>
+          <span class="star-count" aria-hidden="true">{{ recipe.star_count || 0 }}</span>
         </div>
         <div class="share-buttons">
-          <button class="icon-btn whatsapp" @click="shareWhatsApp">
-            &#128172; {{ $t('share.whatsapp') }}
+          <button class="icon-btn whatsapp" @click="shareWhatsApp" :aria-label="$t('share.whatsapp')">
+            <span aria-hidden="true">&#128172;</span> {{ $t('share.whatsapp') }}
           </button>
-          <button class="icon-btn" @click="window.print()">
-            &#128424; {{ $t('share.print') }}
+          <button class="icon-btn" @click="window.print()" :aria-label="$t('share.print')">
+            <span aria-hidden="true">&#128424;</span> {{ $t('share.print') }}
           </button>
         </div>
       </div>
 
       <!-- Ingredients -->
-      <h2 class="section-title">&#129379; {{ $t('recipe.ingredients') }}</h2>
-      <ul class="ingredients-list">
-        <li v-for="(ing, idx) in ingredients" :key="idx" @click="toggleIngredient(idx)">
-          <div class="ingredient-check" :class="{ checked: checkedIngredients.has(idx) }">
+      <div class="ingredients-header">
+        <h2 class="section-title"><span aria-hidden="true">&#129379;</span> {{ $t('recipe.ingredients') }}</h2>
+        <div v-if="baseServings" class="portion-calculator no-print">
+          <button class="portion-btn" @click="adjustPortions(-0.25)" :disabled="portionMultiplier <= 0.25" :aria-label="$t('recipe.decreasePortions')">&#8722;</button>
+          <span class="portion-value">{{ currentServings }} {{ $t('recipe.servings') }}</span>
+          <button class="portion-btn" @click="adjustPortions(0.25)" :disabled="portionMultiplier >= 10" :aria-label="$t('recipe.increasePortions')">&#43;</button>
+        </div>
+      </div>
+      <ul class="ingredients-list" role="list">
+        <li v-for="(ing, idx) in ingredients" :key="idx" role="checkbox" :aria-checked="checkedIngredients.has(idx)" tabindex="0" @click="toggleIngredient(idx)" @keydown.enter.prevent="toggleIngredient(idx)" @keydown.space.prevent="toggleIngredient(idx)">
+          <div class="ingredient-check" :class="{ checked: checkedIngredients.has(idx) }" aria-hidden="true">
             <span v-if="checkedIngredients.has(idx)">&#10003;</span>
           </div>
           <span :class="{ 'checked-text': checkedIngredients.has(idx) }">
-            {{ ing.amount }} {{ typeof ing.unit === 'object' ? (ing.unit?.[locale] || ing.unit?.en || '') : (ing.unit || '') }} {{ ing.text?.[locale] || ing.text?.en || '' }}
+            {{ scaleAmount(ing.amount) }} {{ typeof ing.unit === 'object' ? (ing.unit?.[locale] || ing.unit?.en || '') : (ing.unit || '') }} {{ ing.text?.[locale] || ing.text?.en || '' }}
           </span>
         </li>
       </ul>
 
       <!-- Steps -->
-      <h2 class="section-title">&#128203; {{ $t('recipe.steps') }}</h2>
+      <div class="steps-header">
+        <h2 class="section-title"><span aria-hidden="true">&#128203;</span> {{ $t('recipe.steps') }}</h2>
+        <button v-if="parsedSteps.length > 1" class="icon-btn no-print" @click="enterFocusMode" :aria-label="$t('recipe.focusMode')">
+          <span aria-hidden="true">&#127859;</span> {{ $t('recipe.focusMode') }}
+        </button>
+      </div>
       <div class="steps-content" v-html="steps"></div>
     </div>
+
+    <!-- Focus Mode Overlay -->
+    <Teleport to="body">
+      <div v-if="focusMode" class="focus-overlay" @keydown.escape="exitFocusMode">
+        <div class="focus-container">
+          <div class="focus-header">
+            <span class="focus-step-counter">{{ focusStep + 1 }} / {{ parsedSteps.length }}</span>
+            <button class="focus-close" @click="exitFocusMode" :aria-label="$t('common.close')">&#10005;</button>
+          </div>
+          <div class="focus-progress">
+            <div class="focus-progress-bar" :style="{ width: `${((focusStep + 1) / parsedSteps.length) * 100}%` }"></div>
+          </div>
+          <div class="focus-step-content" v-html="parsedSteps[focusStep]"></div>
+          <div class="focus-nav">
+            <button class="focus-nav-btn" :disabled="focusStep <= 0" @click="focusStep--">&#8592; {{ $t('recipe.prevStep') }}</button>
+            <button v-if="focusStep < parsedSteps.length - 1" class="focus-nav-btn primary" @click="focusStep++">{{ $t('recipe.nextStep') }} &#8594;</button>
+            <button v-else class="focus-nav-btn primary" @click="exitFocusMode">&#10003; {{ $t('recipe.done') }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -218,6 +316,25 @@ function shareWhatsApp() {
   margin-bottom: 16px;
 }
 
+.recipe-detail-meta {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.detail-meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 50px;
+  background: var(--category-bg);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+}
+
 .recipe-body h1 {
   font-size: 1.8rem;
   font-weight: 800;
@@ -283,6 +400,60 @@ function shareWhatsApp() {
 
 .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
 .icon-btn.whatsapp:hover { border-color: #25d366; color: #25d366; }
+
+.ingredients-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ingredients-header .section-title {
+  margin-bottom: 0;
+}
+
+.portion-calculator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.portion-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--category-bg);
+  color: var(--text);
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  font-family: inherit;
+  line-height: 1;
+}
+
+.portion-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.portion-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.portion-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 80px;
+  text-align: center;
+}
 
 .section-title {
   font-size: 1.1rem;
@@ -350,9 +521,136 @@ function shareWhatsApp() {
   margin-bottom: 12px;
 }
 
+.steps-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.steps-header .section-title {
+  margin-bottom: 0;
+}
+
+/* Focus Mode */
+.focus-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.focus-container {
+  max-width: 600px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.focus-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.focus-step-counter {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.focus-close {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.focus-close:hover {
+  color: var(--text);
+}
+
+.focus-progress {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.focus-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.focus-step-content {
+  font-size: 1.4rem;
+  line-height: 1.8;
+  color: var(--text);
+  text-align: center;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.focus-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.focus-nav-btn {
+  flex: 1;
+  padding: 14px 24px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+
+.focus-nav-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.focus-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.focus-nav-btn.primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.focus-nav-btn.primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  color: white;
+}
+
 @media (max-width: 768px) {
   .recipe-body { padding: 16px; }
   .recipe-body h1 { font-size: 1.4rem; }
   .share-buttons { flex-direction: column; }
+
+  .focus-step-content {
+    font-size: 1.2rem;
+  }
 }
 </style>

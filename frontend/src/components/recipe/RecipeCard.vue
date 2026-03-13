@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useLocaleStore } from '@/stores/locale'
 import { useCategoriesStore } from '@/stores/categories'
 
@@ -7,6 +8,7 @@ const props = defineProps({
   recipe: { type: Object, required: true }
 })
 
+const { t } = useI18n()
 const localeStore = useLocaleStore()
 const categoriesStore = useCategoriesStore()
 
@@ -30,6 +32,12 @@ const thumbnail = computed(() => {
   }
   return null
 })
+
+const difficultyLabel = computed(() => {
+  const d = props.recipe.difficulty
+  if (!d) return ''
+  return t(`recipe.difficulty.${d}`)
+})
 </script>
 
 <template>
@@ -44,6 +52,10 @@ const thumbnail = computed(() => {
       </div>
       <div class="recipe-name">{{ name }}</div>
       <div class="recipe-meta">
+        <div class="recipe-meta-badges">
+          <span v-if="recipe.prep_time" class="meta-badge">&#9200; {{ recipe.prep_time }}</span>
+          <span v-if="recipe.difficulty" class="meta-badge">{{ difficultyLabel }}</span>
+        </div>
         <span class="recipe-stars">&#9733; {{ recipe.star_count || 0 }}</span>
       </div>
     </div>
@@ -77,6 +89,11 @@ const thumbnail = computed(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.recipe-card:hover .recipe-image img {
+  transform: scale(1.05);
 }
 
 .recipe-placeholder {
@@ -119,9 +136,22 @@ const thumbnail = computed(() => {
 .recipe-meta {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   color: var(--text-secondary);
   font-size: 0.85rem;
+}
+
+.recipe-meta-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.meta-badge {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .recipe-stars {

@@ -24,6 +24,9 @@ const form = ref({
   recipe_of: { en: '', he: '' },
   category_ids: [],
   tags: [],
+  prep_time: '',
+  difficulty: '',
+  servings: null,
   ingredients: [{ text: { en: '', he: '' }, amount: '', unit: { en: '', he: '' } }],
   steps: { en: '', he: '' },
   images: [],
@@ -47,6 +50,9 @@ onMounted(async () => {
           recipe_of: recipe.recipe_of || { en: '', he: '' },
           category_ids: recipe.category_ids || (recipe.category_id ? [recipe.category_id] : []),
           tags: recipe.tags || [],
+          prep_time: recipe.prep_time || '',
+          difficulty: recipe.difficulty || '',
+          servings: recipe.servings || null,
           ingredients: recipe.ingredients?.length
             ? recipe.ingredients.map(ing => ({
                 ...ing,
@@ -237,12 +243,18 @@ async function save(publish = false) {
   saving.value = true
   form.value.published = publish
 
+  // Sanitize optional fields: send null instead of empty string
+  const payload = { ...form.value }
+  if (!payload.prep_time) payload.prep_time = null
+  if (!payload.difficulty) payload.difficulty = null
+  if (!payload.servings) payload.servings = null
+
   try {
     if (isEditing.value) {
-      await api.updateRecipe(route.params.id, form.value)
+      await api.updateRecipe(route.params.id, payload)
       ElMessage.success('Recipe updated')
     } else {
-      await api.createRecipe(form.value)
+      await api.createRecipe(payload)
       ElMessage.success('Recipe created')
     }
     router.push('/admin')
@@ -352,6 +364,26 @@ function getCategoryName(cat) {
       </el-checkbox-group>
     </div>
 
+    <!-- Prep Time & Difficulty -->
+    <div class="form-row">
+      <div class="form-group" style="flex: 1">
+        <label class="form-label">{{ $t('recipe.prepTime') }}</label>
+        <el-input v-model="form.prep_time" placeholder="e.g. 30 min" />
+      </div>
+      <div class="form-group" style="flex: 1">
+        <label class="form-label">{{ $t('recipe.difficulty.label') }}</label>
+        <el-select v-model="form.difficulty" :placeholder="$t('recipe.difficulty.label')" clearable style="width: 100%">
+          <el-option value="easy" :label="$t('recipe.difficulty.easy')" />
+          <el-option value="medium" :label="$t('recipe.difficulty.medium')" />
+          <el-option value="hard" :label="$t('recipe.difficulty.hard')" />
+        </el-select>
+      </div>
+      <div class="form-group" style="flex: 1">
+        <label class="form-label">{{ $t('recipe.servings') }}</label>
+        <el-input-number v-model="form.servings" :min="1" :max="100" :placeholder="$t('recipe.servings')" controls-position="right" style="width: 100%" />
+      </div>
+    </div>
+
     <!-- Ingredients -->
     <div class="form-group">
       <label class="form-label">{{ $t('admin.ingredients') }}</label>
@@ -456,6 +488,11 @@ function getCategoryName(cat) {
 
 .form-group {
   margin-bottom: 20px;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
 }
 
 .form-label {

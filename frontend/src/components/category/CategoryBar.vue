@@ -20,11 +20,12 @@ function getCategoryName(cat) {
 </script>
 
 <template>
-  <div class="categories">
+  <div class="categories" role="group" :aria-label="$t('category.filterByCategory')">
     <div class="categories-inner">
       <button
         class="category-pill"
         :class="{ active: !activeCategory }"
+        :aria-pressed="!activeCategory"
         @click="selectCategory(null)"
       >
         {{ $t('category.all') }}
@@ -34,10 +35,11 @@ function getCategoryName(cat) {
         :key="cat.id"
         class="category-pill"
         :class="{ active: activeCategory === cat.slug }"
+        :aria-pressed="activeCategory === cat.slug"
         @click="selectCategory(cat.slug)"
       >
         {{ getCategoryName(cat) }}
-        <span class="category-count">{{ cat.recipe_count }}</span>
+        <span class="category-count" aria-hidden="true">{{ cat.recipe_count }}</span>
       </button>
     </div>
   </div>

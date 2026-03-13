@@ -23,6 +23,9 @@ class RecipeCreate(BaseModel):
     steps: BilingualText
     images: Optional[List[dict]] = []
     published: Optional[bool] = False
+    prep_time: Optional[str] = None
+    difficulty: Optional[Literal["easy", "medium", "hard"]] = None
+    servings: Optional[int] = None
 
 
 class RecipeUpdate(BaseModel):
@@ -34,6 +37,9 @@ class RecipeUpdate(BaseModel):
     steps: Optional[BilingualText] = None
     images: Optional[List[dict]] = None
     published: Optional[bool] = None
+    prep_time: Optional[str] = None
+    difficulty: Optional[Literal["easy", "medium", "hard"]] = None
+    servings: Optional[int] = None
 
 
 class LoginRequest(BaseModel):

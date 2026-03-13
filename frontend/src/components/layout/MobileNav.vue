@@ -8,28 +8,29 @@ const authStore = useAuthStore()
 </script>
 
 <template>
-  <nav class="mobile-nav no-print">
+  <nav class="mobile-nav no-print" :aria-label="$t('nav.mobileNavigation')">
     <div class="mobile-nav-inner">
-      <a class="mobile-nav-item" :class="{ active: route.path === '/' }" @click="router.push('/')">
-        <span>&#127968;</span>
+      <button class="mobile-nav-item" :class="{ active: route.path === '/' }" @click="router.push('/')" :aria-label="$t('nav.home')">
+        <span aria-hidden="true">&#127968;</span>
         <span>{{ $t('nav.home') }}</span>
-      </a>
-      <a class="mobile-nav-item" :class="{ active: route.path.startsWith('/category') }">
-        <span>&#128218;</span>
+      </button>
+      <button class="mobile-nav-item" :class="{ active: route.path.startsWith('/category') }" :aria-label="$t('nav.categories')">
+        <span aria-hidden="true">&#128218;</span>
         <span>{{ $t('nav.categories') }}</span>
-      </a>
-      <a class="mobile-nav-item">
-        <span>&#11088;</span>
+      </button>
+      <button class="mobile-nav-item" :aria-label="$t('nav.favorites')">
+        <span aria-hidden="true">&#11088;</span>
         <span>{{ $t('nav.favorites') }}</span>
-      </a>
-      <a
+      </button>
+      <button
         class="mobile-nav-item"
         :class="{ active: route.path.startsWith('/admin') || route.path === '/login' }"
         @click="router.push(authStore.isLoggedIn ? '/admin' : '/login')"
+        :aria-label="$t('nav.admin')"
       >
-        <span>&#128100;</span>
+        <span aria-hidden="true">&#128100;</span>
         <span>{{ $t('nav.admin') }}</span>
-      </a>
+      </button>
     </div>
   </nav>
 </template>
@@ -67,6 +68,9 @@ const authStore = useAuthStore()
   padding: 6px 12px;
   border-radius: var(--radius-sm);
   transition: color var(--transition);
+  background: none;
+  border: none;
+  font-family: inherit;
 }
 
 .mobile-nav-item.active {

@@ -22,8 +22,9 @@ onMounted(() => {
 
 <template>
   <div class="app-container">
+    <a href="#main-content" class="skip-link">{{ $t('common.skipToContent') }}</a>
     <AppHeader />
-    <main class="app-main">
+    <main id="main-content" class="app-main" role="main">
       <router-view />
     </main>
     <footer class="app-footer no-print">

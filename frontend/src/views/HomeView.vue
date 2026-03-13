@@ -45,12 +45,13 @@ function getTagName(tag) {
       <h1>{{ $t('app.title') }}</h1>
       <p>{{ $t('app.subtitle') }}</p>
       <div class="search-container">
-        <span class="search-icon">&#128269;</span>
+        <span class="search-icon" aria-hidden="true">&#128269;</span>
         <input
           v-model="searchText"
           type="text"
           class="search-input"
           :placeholder="$t('search.placeholder')"
+          :aria-label="$t('search.placeholder')"
           @input="onSearch"
         />
       </div>
@@ -59,12 +60,13 @@ function getTagName(tag) {
     <CategoryBar />
 
     <!-- Tag filter pills -->
-    <div v-if="tags.length" class="tag-bar">
+    <div v-if="tags.length" class="tag-bar" role="group" :aria-label="$t('tags.title')">
       <div class="tag-bar-inner">
-        <span class="tag-label">{{ $t('tags.title') }}:</span>
+        <span class="tag-label" aria-hidden="true">{{ $t('tags.title') }}:</span>
         <button
           class="tag-pill"
           :class="{ active: !activeTag }"
+          :aria-pressed="!activeTag"
           @click="recipesStore.setFilter('tag', null)"
         >
           {{ $t('tags.all') }}
@@ -74,6 +76,7 @@ function getTagName(tag) {
           :key="tag.slug"
           class="tag-pill"
           :class="{ active: activeTag === tag.slug }"
+          :aria-pressed="activeTag === tag.slug"
           @click="selectTag(tag.slug)"
         >
           {{ getTagName(tag) }}

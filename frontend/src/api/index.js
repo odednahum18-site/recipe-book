@@ -50,6 +50,9 @@ export default {
   getRecipe(slug) {
     return client.get(`/recipes/${slug}`)
   },
+  searchRecipes(query) {
+    return client.get('/recipes', { params: { search: query, page_size: 6 } })
+  },
 
   // Public - Categories
   getCategories() {

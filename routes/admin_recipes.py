@@ -45,6 +45,9 @@ async def create_recipe(recipe: RecipeCreate, user: dict = Depends(require_edito
         "images": recipe.images or [],
         "star_count": 0,
         "published": recipe.published,
+        "prep_time": recipe.prep_time,
+        "difficulty": recipe.difficulty,
+        "servings": recipe.servings,
         "created_by": user.get("sub", "unknown"),
     }
     created = db.create("recipes", data)
@@ -79,6 +82,12 @@ async def update_recipe(recipe_id: str, recipe: RecipeUpdate, user: dict = Depen
         update_data["images"] = recipe.images
     if recipe.published is not None:
         update_data["published"] = recipe.published
+    if recipe.prep_time is not None:
+        update_data["prep_time"] = recipe.prep_time
+    if recipe.difficulty is not None:
+        update_data["difficulty"] = recipe.difficulty
+    if recipe.servings is not None:
+        update_data["servings"] = recipe.servings
 
     updated = db.update("recipes", recipe_id, update_data)
 

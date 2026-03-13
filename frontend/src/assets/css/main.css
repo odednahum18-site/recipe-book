@@ -19,6 +19,8 @@
   --radius-sm: 8px;
   --font-en: 'Inter', system-ui, -apple-system, sans-serif;
   --font-he: 'Heebo', 'Arial', sans-serif;
+  --font-heading-en: 'Playfair Display', Georgia, serif;
+  --font-heading-he: 'Frank Ruhl Libre', 'David Libre', serif;
   --transition: 0.2s ease;
 }
 
@@ -64,6 +66,16 @@ body {
 
 [dir="rtl"] body {
   font-family: var(--font-he);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-heading-en);
+}
+
+[dir="rtl"] h1,
+[dir="rtl"] h2,
+[dir="rtl"] h3 {
+  font-family: var(--font-heading-he);
 }
 
 a {
@@ -205,4 +217,38 @@ html.dark .el-message-box {
 
 .fade-in-up {
   animation: fadeInUp 0.4s ease backwards;
+}
+
+/* ===== Accessibility: Focus Visible ===== */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Skip link for keyboard users */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  background: var(--accent);
+  color: white;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  z-index: 200;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 8px;
 }
